@@ -1,0 +1,66 @@
+@model CognitiveBudget.Web.Controllers.EditTransactionViewModel
+@{
+    ViewData["Title"] = "Edit transaction";
+}
+
+<h2>Edit transaction</h2>
+<form asp-action="Edit" method="post">
+    <input type="hidden" asp-for="Id" />
+    <div class="mb-3">
+        <label asp-for="Amount" class="form-label"></label>
+        <input asp-for="Amount" class="form-control" />
+        <span asp-validation-for="Amount" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Description" class="form-label"></label>
+        <input asp-for="Description" class="form-control" />
+        <span asp-validation-for="Description" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Category" class="form-label"></label>
+        <input asp-for="Category" class="form-control" />
+        <span asp-validation-for="Category" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Merchant" class="form-label">Merchant/Location (optional)</label>
+        <input asp-for="Merchant" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label asp-for="TransactionDate" class="form-label"></label>
+        <input asp-for="TransactionDate" class="form-control" type="date" />
+        <span asp-validation-for="TransactionDate" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="EmotionalState" class="form-label">Mood (optional)</label>
+        <select asp-for="EmotionalState" class="form-select">
+            <option value="">--none--</option>
+            @foreach (var state in Enum.GetValues(typeof(CognitiveBudget.Web.Models.Domain.EmotionalState)))
+            {
+                <option value="@state" selected="@(state.Equals(Model.EmotionalState))">@state</option>
+            }
+        </select>
+    </div>
+
+    @if (Model.NudgeResult != null || Model.Violations.Any())
+    {
+        <div class="alert alert-warning">
+            @if (Model.NudgeResult != null)
+            {
+                <p>@Model.NudgeResult.Message</p>
+            }
+            @foreach (var v in Model.Violations)
+            {
+                <p>@v.Message</p>
+            }
+            <div class="form-check">
+                <input asp-for="ConfirmedDespiteWarning" class="form-check-input" />
+                <label asp-for="ConfirmedDespiteWarning" class="form-check-label">I understand the warning and want to continue</label>
+            </div>
+        </div>
+    }
+
+    <button type="submit" class="btn btn-primary">Save</button>
+</form>
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

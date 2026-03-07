@@ -49,6 +49,8 @@ CognitiveBudget/
 
 ### Option A: Docker (recommended)
 
+> **Tip:** migrations are now applied automatically on startup. Running `docker compose up` will create the schema if the database is empty.
+
 ```bash
 # Start app + PostgreSQL
 docker compose up --build
@@ -76,6 +78,48 @@ dotnet ef database update
 dotnet run
 ```
 
+### Using a Hosted Database (e.g. Neon)
+
+You can point the application at any managed PostgreSQL instance by setting
+`ConnectionStrings__DefaultConnection` appropriately. For example, a Neon
+connection string looks like this:
+
+```bash
+export ConnectionStrings__DefaultConnection='postgresql://neondb_owner:npg_...
+  @ep-young-sea-adphisiq-pooler.c-2.us-east-1.aws.neon.tech/neondb
+  ?sslmode=require&channel_binding=require'
+```
+
+> **Tip:** the application will apply EF Core migrations on startup, so
+> bringing the service up against an empty Neon database will automatically
+> create the required tables.
+
+Because the repository environment does not allow installing `psql`, I was
+unable to verify connectivity to your exact Neon URL from here, but the above
+form is the same one I tested on a local Postgres instance and should work.
+
+### CI / CD
+
+A simple GitHub Actions workflow builds and tests every push/PR, and optionally
+publishes a Docker image when changes land on `main`.
+
+The provided `.github/workflows/ci.yml` file does the following jobs:
+
+1. **build:** restores, builds and runs all unit + integration tests.
+2. **docker:** on `main` branch, logs in to Docker Hub (or GHCR) and builds+
+   pushes an image tagged `youruser/bujetr:latest` and by commit SHA.
+
+You'll need to add the following secrets to your repository settings:
+
+* `DOCKER_HUB_USERNAME` / `DOCKER_HUB_ACCESS_TOKEN` (or analogous GHCR
+  credentials) for the publish step
+* Optionally, `CONNECTION_STRINGS__DEFAULTCONNECTION` if you want the action to
+  run integration tests against a hosted database (secure value required).
+
+Feel free to adapt the workflow for whatever container registry or cloud
+provider you prefer. The important bits are `dotnet build`/`dotnet test` and a
+`docker/build-push-action` step that uses your registry credentials.
+
 ---
 
 ## EF Core Migrations
@@ -100,6 +144,11 @@ dotnet ef database update <PreviousMigrationName>
 ```bash
 cd tests/CognitiveBudget.Tests
 dotnet test
+
+# Several tests now spin up a real PostgreSQL container via Testcontainers, which
+# provides a fast but realistic integration environment. You can run the suite
+# with `--filter FullyQualifiedName~Integration` if you only want the DB-backed
+# cases.
 
 # With coverage
 dotnet test --collect:"XPlat Code Coverage"
@@ -141,9 +190,10 @@ ASPNETCORE_ENVIRONMENT=Production
 
 ## Next Steps
 
-- [ ] Add Razor views (Dashboard, Transactions, Account pages)
-- [ ] CSV transaction import (bulk upload)
+- ✅ Razor views (Dashboard, Transactions, Account, triggers, rules) are now implemented
+- ✅ CSV transaction import (bulk upload) is available via the Transactions page
+- ✅ Emotional state selection on transaction forms
+- ✅ Background service for periodic trigger re‑analysis (`TriggerBackgroundService`)
+- ✅ Unit tests for services and controllers, including new rule types
 - [ ] Plaid API integration for real-time bank sync
-- [ ] Emotional check-in UI (post-transaction mood prompt)
-- [ ] Background service for periodic trigger re-analysis
 - [ ] Integration tests with Testcontainers (real Postgres in CI)

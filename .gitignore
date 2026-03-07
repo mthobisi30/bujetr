@@ -1,0 +1,33 @@
+# Build outputs
+bin/
+obj/
+
+# Visual Studio specific
+*.user
+*.suo
+*.vspx
+
+# ASP.NET Scaffolding
+**/ScaffoldingReadMe.txt
+
+# Rider
+.idea/
+
+# NuGet
+*.nupkg
+packages/
+
+# Dotnet user secrets
+secrets.json
+
+# Logs
+logs/
+
+# SQL Server debug
+*.mdf
+*.ldf
+
+# Docker
+**/docker-compose.override.yml
+
+env.*

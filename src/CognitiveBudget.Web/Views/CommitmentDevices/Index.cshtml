@@ -1,0 +1,26 @@
+@model IEnumerable<CognitiveBudget.Web.Models.Domain.CommitmentDevice>
+@{
+    ViewData["Title"] = "Your commitment rules";
+}
+
+<h2>Commitment rules</h2>
+<p><a class="btn btn-primary" href="@Url.Action("Create")">Add rule</a></p>
+<table class="table table-sm">
+    <thead><tr><th>Name</th><th>Type</th><th>Action</th><th></th></tr></thead>
+    <tbody>
+    @foreach (var d in Model)
+    {
+        <tr>
+            <td>@d.Name</td>
+            <td>@d.RuleType</td>
+            <td>@d.Action</td>
+            <td>
+                <form asp-action="Delete" method="post" style="display:inline">
+                    <input type="hidden" name="id" value="@d.Id" />
+                    <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove rule?');">Delete</button>
+                </form>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

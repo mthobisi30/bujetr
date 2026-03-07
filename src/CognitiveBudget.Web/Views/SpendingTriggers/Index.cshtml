@@ -1,0 +1,26 @@
+@model IEnumerable<CognitiveBudget.Web.Models.Domain.SpendingTrigger>
+@{
+    ViewData["Title"] = "Spending Triggers";
+}
+
+<h2>Spending triggers</h2>
+<p>These are patterns detected in your transactions; you can deactivate any that are no longer relevant.</p>
+<table class="table table-sm">
+    <thead><tr><th>Label</th><th>Insight</th><th>Confidence</th><th></th></tr></thead>
+    <tbody>
+    @foreach (var t in Model)
+    {
+        <tr>
+            <td>@t.Label</td>
+            <td>@t.Insight</td>
+            <td>@t.ConfidenceScore.ToString("P0")</td>
+            <td>
+                <form asp-action="Deactivate" method="post" style="display:inline">
+                    <input type="hidden" name="id" value="@t.Id" />
+                    <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate?');">Deactivate</button>
+                </form>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

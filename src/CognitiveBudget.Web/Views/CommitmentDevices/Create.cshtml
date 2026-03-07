@@ -1,0 +1,86 @@
+@model CognitiveBudget.Web.Controllers.CreateCommitmentDeviceViewModel
+@{
+    ViewData["Title"] = "New commitment rule";
+}
+
+<h2>New commitment rule</h2>
+<form asp-action="Create" method="post">
+    <div class="mb-3">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Description" class="form-label"></label>
+        <textarea asp-for="Description" class="form-control"></textarea>
+        <span asp-validation-for="Description" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="RuleType" class="form-label"></label>
+        <select asp-for="RuleType" class="form-select" id="ruleTypeSelect">
+            @foreach (var rt in Enum.GetValues(typeof(CognitiveBudget.Web.Models.Domain.CommitmentRuleType)))
+            {
+                <option value="@rt">@rt</option>
+            }
+        </select>
+    </div>
+
+    <div class="mb-3" id="thresholdFields">
+        <label asp-for="ThresholdAmount" class="form-label"></label>
+        <input asp-for="ThresholdAmount" class="form-control" />
+        <span asp-validation-for="ThresholdAmount" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3" id="categoryField">
+        <label asp-for="Category" class="form-label"></label>
+        <input asp-for="Category" class="form-control" />
+        <span asp-validation-for="Category" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3" id="merchantField" style="display:none;">
+        <label asp-for="MerchantKeyword" class="form-label">Merchant keyword</label>
+        <input asp-for="MerchantKeyword" class="form-control" />
+        <span asp-validation-for="MerchantKeyword" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3" id="timeFields" style="display:none;">
+        <label class="form-label">Active days</label>
+        <select asp-for="ActiveDays" class="form-select" multiple>
+            @foreach (var day in Enum.GetValues(typeof(DayOfWeek)))
+            {
+                <option value="@day">@day</option>
+            }
+        </select>
+        <label asp-for="ActiveFromHour" class="form-label mt-2">From hour (0‑23)</label>
+        <input asp-for="ActiveFromHour" class="form-control" type="number" min="0" max="23" />
+        <label asp-for="ActiveToHour" class="form-label mt-2">To hour (0‑23)</label>
+        <input asp-for="ActiveToHour" class="form-control" type="number" min="0" max="23" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Action" class="form-label"></label>
+        <select asp-for="Action" class="form-select">
+            @foreach (var act in Enum.GetValues(typeof(CognitiveBudget.Web.Models.Domain.CommitmentAction)))
+            {
+                <option value="@act">@act</option>
+            }
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create</button>
+</form>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        function refreshRuleFields() {
+            var type = document.getElementById('ruleTypeSelect').value;
+            document.getElementById('thresholdFields').style.display = ['SpendingThreshold','CategoryLimit','TimeBasedLimit'].includes(type) ? '' : 'none';
+            document.getElementById('categoryField').style.display = ['CategoryLimit'].includes(type) ? '' : 'none';
+            document.getElementById('merchantField').style.display = type === 'MerchantBlock' ? '' : 'none';
+            document.getElementById('timeFields').style.display = type === 'TimeBasedLimit' ? '' : 'none';
+        }
+        document.getElementById('ruleTypeSelect').addEventListener('change', refreshRuleFields);
+        refreshRuleFields();
+    </script>
+}

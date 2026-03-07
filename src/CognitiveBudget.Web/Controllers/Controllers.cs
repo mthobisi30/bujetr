@@ -1,9 +1,11 @@
+using System.ComponentModel.DataAnnotations;
 using CognitiveBudget.Web.Data.Repositories;
 using CognitiveBudget.Web.Models.Domain;
 using CognitiveBudget.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 
 namespace CognitiveBudget.Web.Controllers;
 
@@ -184,6 +186,51 @@ public class TransactionsController : Controller
     [HttpGet]
     public IActionResult Create() => View(new CreateTransactionViewModel());
 
+    [HttpGet]
+    public IActionResult Upload() => View();
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Upload(IFormFile? csv)
+    {
+        if (csv == null || csv.Length == 0)
+        {
+            ModelState.AddModelError(string.Empty, "Please select a CSV file to import.");
+            return View();
+        }
+
+        var userId = _userManager.GetUserId(User)!;
+        var inserted = 0;
+        using var reader = new System.IO.StreamReader(csv.OpenReadStream());
+        while (!reader.EndOfStream)
+        {
+            var line = await reader.ReadLineAsync();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var parts = line.Split(',');
+            if (parts.Length < 4) continue;
+            if (!DateTime.TryParse(parts[0], out var dt)) continue;
+            if (!decimal.TryParse(parts[1], out var amt)) continue;
+            var desc = parts[2];
+            var cat = parts[3];
+            var merchant = parts.Length > 4 ? parts[4] : null;
+
+            var tx = new Transaction
+            {
+                UserId = userId,
+                TransactionDate = dt,
+                Amount = amt,
+                Description = desc,
+                Category = cat,
+                Merchant = merchant
+            };
+            await _repo.CreateAsync(tx);
+            inserted++;
+        }
+
+        TempData["Success"] = $"Imported {inserted} transactions.";
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(CreateTransactionViewModel model)
@@ -193,8 +240,8 @@ public class TransactionsController : Controller
         var userId = _userManager.GetUserId(User)!;
 
         // Check nudges and commitment violations before saving
-        var nudge      = await _nudgeService.EvaluatePrePurchaseNudgeAsync(userId, model.Category, model.Amount);
-        var violations = await _commitmentService.CheckViolationsAsync(userId, model.Amount, model.Category);
+        var nudge      = await _nudgeService.EvaluatePrePurchaseNudgeAsync(userId, model.Category, model.Amount, model.Merchant);
+        var violations = await _commitmentService.CheckViolationsAsync(userId, model.Amount, model.Category, model.Merchant, model.TransactionDate);
 
         if ((nudge != null || violations.Any()) && !model.ConfirmedDespiteWarning)
         {
@@ -227,7 +274,56 @@ public class TransactionsController : Controller
         var userId      = _userManager.GetUserId(User)!;
         var transaction = await _repo.GetByIdAsync(id, userId);
         if (transaction is null) return NotFound();
-        return View(transaction);
+
+        // map to view model so we don't expose navigation props accidentally
+        var model = new EditTransactionViewModel
+        {
+            Id               = transaction.Id,
+            Amount           = transaction.Amount,
+            Description      = transaction.Description,
+            Category         = transaction.Category,
+            Merchant         = transaction.Merchant,
+            TransactionDate  = transaction.TransactionDate,
+            EmotionalState   = transaction.EmotionalState,
+            ConfirmedDespiteWarning = transaction.NudgeShown && !transaction.NudgeHeeded
+        };
+
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(EditTransactionViewModel model)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        var userId = _userManager.GetUserId(User)!;
+        var existing = await _repo.GetByIdAsync(model.Id, userId);
+        if (existing is null) return NotFound();
+
+        // evaluate nudges and commitments if amount/category changed
+        var nudge      = await _nudgeService.EvaluatePrePurchaseNudgeAsync(userId, model.Category, model.Amount, model.Merchant);
+        var violations = await _commitmentService.CheckViolationsAsync(userId, model.Amount, model.Category, model.Merchant, model.TransactionDate);
+
+        if ((nudge != null || violations.Any()) && !model.ConfirmedDespiteWarning)
+        {
+            model.NudgeResult = nudge;
+            model.Violations  = violations.ToList();
+            return View(model); // show warnings
+        }
+
+        existing.Amount         = model.Amount;
+        existing.Description    = model.Description;
+        existing.Category       = model.Category;
+        existing.Merchant       = model.Merchant;
+        existing.TransactionDate= model.TransactionDate;
+        existing.EmotionalState = model.EmotionalState;
+        existing.NudgeShown     = nudge != null;
+        existing.NudgeHeeded    = nudge != null && !model.ConfirmedDespiteWarning;
+
+        await _repo.UpdateAsync(existing);
+        TempData["Success"] = "Transaction updated.";
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]
@@ -241,13 +337,103 @@ public class TransactionsController : Controller
     }
 }
 
+
+// ─── Spending trigger management ───────────────────────────────────────────────
+
+[Authorize]
+public class SpendingTriggersController : Controller
+{
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ISpendingTriggerRepository _triggerRepo;
+
+    public SpendingTriggersController(UserManager<ApplicationUser> userManager,
+                                      ISpendingTriggerRepository triggerRepo)
+    {
+        _userManager = userManager;
+        _triggerRepo = triggerRepo;
+    }
+
+    public async Task<IActionResult> Index()
+    {
+        var userId = _userManager.GetUserId(User)!;
+        var triggers = await _triggerRepo.GetActiveByUserIdAsync(userId);
+        return View(triggers);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Deactivate(Guid id)
+    {
+        var userId = _userManager.GetUserId(User)!;
+        await _triggerRepo.DeactivateAsync(id, userId);
+        TempData["Success"] = "Trigger deactivated.";
+        return RedirectToAction(nameof(Index));
+    }
+}
+
+// ─── Commitment device management ─────────────────────────────────────────────
+
+[Authorize]
+public class CommitmentDevicesController : Controller
+{
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ICommitmentDeviceService _service;
+
+    public CommitmentDevicesController(UserManager<ApplicationUser> userManager,
+                                       ICommitmentDeviceService service)
+    {
+        _userManager = userManager;
+        _service     = service;
+    }
+
+    public async Task<IActionResult> Index()
+    {
+        var userId = _userManager.GetUserId(User)!;
+        var devices = await _service.GetUserDevicesAsync(userId);
+        return View(devices);
+    }
+
+    [HttpGet]
+    public IActionResult Create() => View(new CreateCommitmentDeviceViewModel());
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create(CreateCommitmentDeviceViewModel model)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        var userId = _userManager.GetUserId(User)!;
+        var request = new CreateCommitmentDeviceRequest(
+            model.Name,
+            model.Description,
+            model.RuleType,
+            model.ThresholdAmount,
+            model.Category,
+            model.Action,
+            model.ActiveDays,
+            model.ActiveFromHour,
+            model.ActiveToHour,
+            model.MerchantKeyword
+        );
+
+        await _service.CreateDeviceAsync(userId, request);
+        TempData["Success"] = "Rule created.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var userId = _userManager.GetUserId(User)!;
+        await _service.DeleteDeviceAsync(id, userId);
+        TempData["Success"] = "Rule deleted.";
+        return RedirectToAction(nameof(Index));
+    }
+}
+
 // ─── View Models ──────────────────────────────────────────────────────────────
 
-using System.ComponentModel.DataAnnotations;
-using CognitiveBudget.Web.Data.Repositories;
-using CognitiveBudget.Web.Services;
-
-namespace CognitiveBudget.Web.Controllers;
 
 public class RegisterViewModel
 {
@@ -296,4 +482,27 @@ public class CreateTransactionViewModel
     public bool ConfirmedDespiteWarning { get; set; }
     public NudgeResult? NudgeResult { get; set; }
     public List<CommitmentViolation> Violations { get; set; } = new();
+}
+
+public class EditTransactionViewModel : CreateTransactionViewModel
+{
+    [Required]
+    public Guid Id { get; set; }
+}
+
+public class CreateCommitmentDeviceViewModel
+{
+    [Required] public string Name { get; set; } = string.Empty;
+    [Required] public string Description { get; set; } = string.Empty;
+    [Required] public CommitmentRuleType RuleType { get; set; }
+
+    public decimal? ThresholdAmount { get; set; }
+    public string? Category { get; set; }
+
+    public DayOfWeek[]? ActiveDays { get; set; }
+    public int? ActiveFromHour { get; set; }
+    public int? ActiveToHour { get; set; }
+    public string? MerchantKeyword { get; set; }
+
+    public CommitmentAction Action { get; set; } = CommitmentAction.Notify;
 }

@@ -1,0 +1,19 @@
+@{
+    ViewData["Title"] = "Welcome";
+}
+
+<div class="jumbotron text-center">
+    <h1 class="display-4">Welcome to CognitiveBudget</h1>
+    <p class="lead">Understand your spending patterns and stay in control of impulse purchases.</p>
+    <hr class="my-4" />
+    <p>
+        @if (User.Identity?.IsAuthenticated == false)
+        {
+            <a class="btn btn-primary btn-lg" href="@Url.Action("Register","Account")" role="button">Get Started</a>
+        }
+        else
+        {
+            <a class="btn btn-primary btn-lg" href="@Url.Action("Index","Dashboard")" role="button">Go to Dashboard</a>
+        }
+    </p>
+</div>

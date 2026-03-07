@@ -37,7 +37,12 @@ public interface ICommitmentDeviceService
     /// <summary>
     /// Checks if any commitment rules are triggered by a proposed transaction.
     /// </summary>
-    Task<IEnumerable<CommitmentViolation>> CheckViolationsAsync(string userId, decimal amount, string category);
+    Task<IEnumerable<CommitmentViolation>> CheckViolationsAsync(
+        string userId,
+        decimal amount,
+        string category,
+        string? merchant = null,
+        DateTime? when = null);
 }
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
@@ -60,7 +65,11 @@ public record CreateCommitmentDeviceRequest(
     CommitmentRuleType RuleType,
     decimal? ThresholdAmount,
     string? Category,
-    CommitmentAction Action
+    CommitmentAction Action,
+    DayOfWeek[]? ActiveDays = null,
+    int? ActiveFromHour = null,
+    int? ActiveToHour = null,
+    string? MerchantKeyword = null
 );
 
 public enum NudgeSeverity { Info, Warning, StrongWarning }
@@ -242,8 +251,18 @@ public class CommitmentDeviceService : ICommitmentDeviceService
             RuleType    = request.RuleType,
             ThresholdAmount = request.ThresholdAmount,
             Category    = request.Category,
+            ActiveDays  = request.ActiveDays,
+            ActiveFromHour = request.ActiveFromHour,
+            ActiveToHour   = request.ActiveToHour,
             Action      = request.Action
         };
+
+        // merchant keyword is stored in Category property for MerchantBlock rules
+        if (request.RuleType == CommitmentRuleType.MerchantBlock &&
+            !string.IsNullOrWhiteSpace(request.MerchantKeyword))
+        {
+            device.Category = request.MerchantKeyword;
+        }
 
         return await _repo.CreateAsync(device);
     }
@@ -252,25 +271,52 @@ public class CommitmentDeviceService : ICommitmentDeviceService
         => _repo.DeleteAsync(id, userId);
 
     public async Task<IEnumerable<CommitmentViolation>> CheckViolationsAsync(
-        string userId, decimal amount, string category)
+        string userId, decimal amount, string category, string? merchant = null, DateTime? when = null)
     {
         var devices    = await _repo.GetActiveByUserIdAsync(userId);
         var violations = new List<CommitmentViolation>();
 
         foreach (var device in devices)
         {
-            var violated = device.RuleType switch
+            bool violated = false;
+
+            switch (device.RuleType)
             {
-                CommitmentRuleType.SpendingThreshold =>
-                    device.ThresholdAmount.HasValue && amount > device.ThresholdAmount.Value,
+                case CommitmentRuleType.SpendingThreshold:
+                    violated = device.ThresholdAmount.HasValue && amount > device.ThresholdAmount.Value;
+                    break;
 
-                CommitmentRuleType.CategoryLimit =>
-                    device.Category != null &&
-                    device.Category.Equals(category, StringComparison.OrdinalIgnoreCase) &&
-                    device.ThresholdAmount.HasValue && amount > device.ThresholdAmount.Value,
+                case CommitmentRuleType.CategoryLimit:
+                    violated = device.Category != null &&
+                               device.Category.Equals(category, StringComparison.OrdinalIgnoreCase) &&
+                               device.ThresholdAmount.HasValue && amount > device.ThresholdAmount.Value;
+                    break;
 
-                _ => false
-            };
+                case CommitmentRuleType.TimeBasedLimit:
+                    if (when.HasValue && device.ActiveDays?.Length > 0)
+                    {
+                        if (device.ActiveDays.Contains(when.Value.DayOfWeek))
+                        {
+                            var hour = when.Value.Hour;
+                            if (device.ActiveFromHour.HasValue && device.ActiveToHour.HasValue &&
+                                hour >= device.ActiveFromHour.Value && hour < device.ActiveToHour.Value)
+                            {
+                                if (device.ThresholdAmount.HasValue && amount > device.ThresholdAmount.Value)
+                                    violated = true;
+                            }
+                        }
+                    }
+                    break;
+
+                case CommitmentRuleType.MerchantBlock:
+                    if (!string.IsNullOrWhiteSpace(merchant) &&
+                        device.Category != null &&
+                        merchant.Contains(device.Category, StringComparison.OrdinalIgnoreCase))
+                    {
+                        violated = true;
+                    }
+                    break;
+            }
 
             if (violated)
             {

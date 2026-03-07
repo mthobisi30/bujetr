@@ -1,0 +1,12 @@
+@{
+    ViewData["Title"] = "Import transactions";
+}
+
+<h2>Import CSV</h2>
+<p>The file should be a simple comma‑separated list: <code>Date,Amount,Description,Category[,Merchant]</code>.</p>
+<form asp-action="Upload" method="post" enctype="multipart/form-data">
+    <div class="mb-3">
+        <input type="file" name="csv" accept=".csv" class="form-control" />
+    </div>
+    <button type="submit" class="btn btn-primary">Upload</button>
+</form>

@@ -1,0 +1,57 @@
+@model CognitiveBudget.Web.Controllers.DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<h2>Dashboard</h2>
+
+<div class="mb-3">
+    <form asp-action="RefreshTriggers" method="post">
+        <button class="btn btn-secondary">Re-run trigger analysis</button>
+        <span class="text-muted">(only needs to run when you add fresh transactions)</span>
+    </form>
+</div>
+
+@if (Model.TopTriggers.Any())
+{
+    <h3>Top spending triggers</h3>
+    <ul class="list-group mb-4">
+        @foreach (var t in Model.TopTriggers)
+        {
+            <li class="list-group-item">
+                <strong>@t.Label</strong>: @t.Insight
+            </li>
+        }
+    </ul>
+}
+
+<h3>Recent transactions</h3>
+<table class="table table-striped">
+    <thead><tr><th>Date</th><th>Amount</th><th>Category</th><th>Description</th></tr></thead>
+    <tbody>
+    @foreach (var tx in Model.RecentTransactions)
+    {
+        <tr>
+            <td>@tx.TransactionDate.ToString("g")</td>
+            <td>@tx.Amount.ToString("C")</td>
+            <td>@tx.Category</td>
+            <td>@tx.Description</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+<h3>Spending by category (last 30 days)</h3>
+<table class="table table-sm">
+    <thead><tr><th>Category</th><th>Total</th><th>Percent</th></tr></thead>
+    <tbody>
+    @foreach (var cat in Model.CategoryTotals)
+    {
+        <tr>
+            <td>@cat.Category</td>
+            <td>@cat.Total.ToString("C")</td>
+            <td>@cat.PercentOfTotal}%</td>
+        </tr>
+    }
+    </tbody>
+</table>

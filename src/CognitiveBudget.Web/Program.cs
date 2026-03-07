@@ -75,8 +75,14 @@ try
     builder.Services.AddScoped<INudgeService, NudgeService>();
     builder.Services.AddScoped<ICommitmentDeviceService, CommitmentDeviceService>();
 
+    // background work
+    builder.Services.AddHostedService<TriggerBackgroundService>();
+
     // ── HttpContext accessor (for services that need user context) ────────────
     builder.Services.AddHttpContextAccessor();
+
+    // ── health checks (useful for readiness probes in Kubernetes etc.)
+    builder.Services.AddHealthChecks();
 
     var app = builder.Build();
 
@@ -98,10 +104,15 @@ try
         name: "default",
         pattern: "{controller=Home}/{action=Index}/{id?}");
 
-    // ── Auto-migrate on startup (dev only) ────────────────────────────────────
-    if (app.Environment.IsDevelopment())
+    // simple liveness/readiness endpoint
+    app.MapHealthChecks("/health");
+
+    // ── Auto-migrate on startup (apply in any environment) ────────────────
+    // In containerized or production scenarios we want the database to be
+    // brought up to date automatically.  If you prefer to run migrations
+    // manually during deployment, you can remove this block.
+    using (var scope = app.Services.CreateScope())
     {
-        using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await db.Database.MigrateAsync();
     }
