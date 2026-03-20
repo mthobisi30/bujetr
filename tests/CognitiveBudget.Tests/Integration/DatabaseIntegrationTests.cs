@@ -1,7 +1,5 @@
 using System.Threading.Tasks;
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Containers;
-using DotNet.Testcontainers.Configurations;
+using DotNet.Testcontainers.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 using CognitiveBudget.Web.Data;
@@ -14,17 +12,14 @@ namespace CognitiveBudget.Tests.Integration
     // and migrations work end-to-end.
     public class DatabaseIntegrationTests : IAsyncLifetime
     {
-        private readonly PostgreSqlTestcontainer _dbContainer;
+        private readonly IContainer _dbContainer;
 
         public DatabaseIntegrationTests()
         {
-            _dbContainer = new TestcontainersBuilder<PostgreSqlTestcontainer>()
-                .WithDatabase(new PostgreSqlTestcontainerConfiguration
-                {
-                    Database = "integration",
-                    Username = "postgres",
-                    Password = "postgres",
-                })
+            _dbContainer = new PostgreSqlBuilder()
+                .WithDatabase("integration")
+                .WithUsername("postgres")
+                .WithPassword("postgres")
                 .WithCleanUp(true)
                 .Build();
         }
@@ -43,7 +38,6 @@ namespace CognitiveBudget.Tests.Integration
 
         public async Task DisposeAsync()
         {
-            await _dbContainer.StopAsync();
             await _dbContainer.DisposeAsync();
         }
 
