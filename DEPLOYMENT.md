@@ -11,7 +11,7 @@ This document describes the steps to take your CognitiveBudget ASP.NET Core appl
 
 The repository already includes a `Dockerfile` and `docker-compose.yml` for local testing.
 
-> **Note:** the default `Npgsql` package currently has a published vulnerability; upgrade to a newer patch release when available.
+> **Security Update:** Database connection strings must be set via environment variables (see section 2 below). A `.env.example` file is provided as a template. Package versions are aligned with .NET 8.0 target framework.
 
 
 ## 2. Configuring the database
@@ -71,7 +71,7 @@ Use `--profile dev` to include pgAdmin for easy database exploration.
 ## 4. Production considerations
 
 - **Environment:** set `ASPNETCORE_ENVIRONMENT=Production` and other sensitive settings via environment variables or a secrets store.
-- **HTTPS:** terminate TLS at a reverse proxy (nginx, Traefik, etc.) or configure Kestrel directly with a certificate.
+- **HTTPS:** The application will attempt HTTPS redirect in production unless `UseHttpsRedirection=false` is set. For deployments behind a reverse proxy (nginx, Traefik, etc.), set `UseHttpsRedirection=false` in your `.env` file and handle TLS termination at the proxy level.
 - **Logging:** Serilog writes to console and file by default; mount a volume for `/app/logs` when running in containers.
 - **Health checks:** the application exposes a `/health` endpoint that returns 200 when running. Wire this into your orchestrator or load balancer.
 - **Background processing:** a hosted service (`TriggerBackgroundService`) automatically re-analyses user spending triggers once per day.

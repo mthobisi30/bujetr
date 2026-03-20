@@ -91,9 +91,13 @@ try
     {
         app.UseExceptionHandler("/Home/Error");
         app.UseHsts();
+        // HTTPS redirect only when NOT behind a reverse proxy
+        // If running behind nginx/Traefik, disable this and handle TLS there
+        if (!app.Configuration.GetValue<bool>("UseHttpsRedirection"))
+        {
+            app.UseHttpsRedirection();
+        }
     }
-
-    app.UseHttpsRedirection();
     app.UseStaticFiles();
     app.UseSerilogRequestLogging();
     app.UseRouting();

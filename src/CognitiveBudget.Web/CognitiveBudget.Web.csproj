@@ -10,18 +10,19 @@
 
   <ItemGroup>
     <!-- EF Core + PostgreSQL -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
     
     <!-- Dapper -->
     <PackageReference Include="Dapper" Version="2.1.72" />
-    <PackageReference Include="Npgsql" Version="9.0.0" />
+    <PackageReference Include="Npgsql" Version="8.0.0" />
 
     <!-- ASP.NET Identity -->
+    <PackageReference Include="Microsoft.AspNetCore.Identity" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
 
     <!-- Additional utilities -->
