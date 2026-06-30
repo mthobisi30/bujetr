@@ -1,6 +1,10 @@
+using System;
+using System.Linq;
+using System.Text.Json;
 using CognitiveBudget.Web.Models.Domain;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace CognitiveBudget.Web.Data;
 
@@ -95,8 +99,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             cd.Property(x => x.Action).HasConversion<string>();
             cd.Property(x => x.ThresholdAmount).HasColumnType("decimal(18,2)");
 
-            // Store DayOfWeek array as JSON in PostgreSQL
+            // Store DayOfWeek[] as a JSON string in a jsonb column. An explicit
+            // converter avoids Npgsql 8's "dynamic JSON" opt-in requirement.
             cd.Property(x => x.ActiveDays)
+              .HasConversion(
+                  v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                  v => string.IsNullOrEmpty(v) ? null : JsonSerializer.Deserialize<DayOfWeek[]>(v, (JsonSerializerOptions?)null),
+                  new ValueComparer<DayOfWeek[]?>(
+                      (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
+                      v => v == null ? 0 : v.Aggregate(0, (h, x) => HashCode.Combine(h, (int)x)),
+                      v => v == null ? null : v.ToArray()))
               .HasColumnType("jsonb");
 
             cd.HasOne(x => x.User)

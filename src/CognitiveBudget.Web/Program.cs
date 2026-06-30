@@ -250,6 +250,16 @@ try
         }
     }
 
+    // ── Optional demo data backfill (set SeedDemoData=true) ───────────────
+    if (app.Configuration.GetValue("SeedDemoData", false))
+    {
+        using var scope = app.Services.CreateScope();
+        var demoEmail    = app.Configuration["SeedDemoEmail"]    ?? "demo@cognitivebudget.local";
+        var partnerEmail = app.Configuration["SeedPartnerEmail"] ?? "sam@cognitivebudget.local";
+        await CognitiveBudget.Web.Data.DemoDataSeeder.SeedAsync(scope.ServiceProvider, demoEmail, partnerEmail);
+        Log.Information("Demo data seeding checked (login: {Email} / Demo@12345)", demoEmail);
+    }
+
     await app.RunAsync();
 }
 catch (Exception ex)
