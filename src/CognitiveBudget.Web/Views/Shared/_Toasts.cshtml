@@ -1,0 +1,22 @@
+@{
+    var toasts = new[]
+    {
+        ("Success", "success", "bi-check-circle-fill", TempData["Success"] as string),
+        ("Error",   "danger",  "bi-exclamation-octagon-fill", TempData["Error"] as string),
+        ("Warning", "warning", "bi-exclamation-triangle-fill", TempData["Warning"] as string),
+        ("Info",    "info",    "bi-info-circle-fill", TempData["Info"] as string),
+    };
+}
+<div class="toast-stack" id="toastStack">
+    @foreach (var t in toasts)
+    {
+        @if (!string.IsNullOrEmpty(t.Item4))
+        {
+            <div class="cb-toast cb-toast-@t.Item2" role="alert">
+                <i class="bi @t.Item3"></i>
+                <span class="flex-grow-1">@t.Item4</span>
+                <button type="button" class="cb-toast-x" aria-label="Dismiss"><i class="bi bi-x"></i></button>
+            </div>
+        }
+    }
+</div>

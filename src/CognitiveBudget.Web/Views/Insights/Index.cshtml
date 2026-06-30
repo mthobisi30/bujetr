@@ -1,0 +1,189 @@
+@model InsightsOverviewViewModel
+@{
+    ViewData["Title"] = "Insights";
+    string Money(decimal d) => d.ToString("C0");
+    var catColors = new[] { "#25e07e", "#8b5cf6", "#f59e0b", "#3b82f6", "#06b6d4", "#ec4899", "#10b981", "#9aa3b2" };
+    var days = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+    Func<string, (string color, string icon)> catVis = c => (c ?? "").ToLower() switch
+    {
+        "groceries" => ("#25e07e", "bi-cart"),
+        "shopping" => ("#ec4899", "bi-bag"),
+        "dining" or "eating out" => ("#f59e0b", "bi-cup-hot"),
+        "subscriptions" => ("#06b6d4", "bi-arrow-repeat"),
+        "utilities" => ("#3b82f6", "bi-lightning-charge"),
+        "entertainment" => ("#8b5cf6", "bi-controller"),
+        _ => ("#9aa3b2", "bi-tag")
+    };
+}
+
+<div class="hero">
+    <div class="page-header">
+        <div><h2>Insights</h2><p class="text-muted m-0">Monitor patterns, understand your money, and automate smarter financial decisions.</p></div>
+    </div>
+    <partial name="_InsightsTabs" model="@("overview")" />
+</div>
+
+<!-- KPIs -->
+<div class="row row-cols-2 row-cols-xl-4 g-3 my-1">
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between align-items-start"><span class="chip-ico"><i class="bi bi-graph-up-arrow"></i></span>
+            <span class="delta @(Model.SavingsRateDelta >= 0 ? "delta-up" : "delta-down")">@(Model.SavingsRateDelta >= 0 ? "+" : "")@Model.SavingsRateDelta pp</span></div>
+        <div class="val">@Model.SavingsRate%</div><div class="lbl">Monthly savings rate</div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between align-items-start"><span class="chip-ico violet"><i class="bi bi-lightning-charge"></i></span></div>
+        <div class="val">@Model.SpendingEfficiency%</div><div class="lbl">Spending efficiency</div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between align-items-start"><span class="chip-ico cyan"><i class="bi bi-gear-wide-connected"></i></span></div>
+        <div class="val">@Model.AutomationCoverage%</div><div class="lbl">Automation coverage</div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between align-items-start"><span class="chip-ico red"><i class="bi bi-shield-exclamation"></i></span></div>
+        <div class="val @(Model.RiskAlertCount > 0 ? "text-danger" : "")">@Model.RiskAlertCount</div><div class="lbl">Risk alerts</div>
+    </div></div>
+</div>
+
+<!-- Cash flow + behaviour -->
+<div class="dash-grid">
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-activity"></i> Cash Flow Pattern</h6>
+            <canvas id="flowChart" height="120"></canvas>
+            <div class="row text-center mt-3 g-2">
+                <div class="col"><div class="text-muted small">Total Income</div><div class="fw-bold text-success">@Money(Model.MonthIncome)</div></div>
+                <div class="col"><div class="text-muted small">Total Expenses</div><div class="fw-bold">@Money(Model.MonthExpense)</div></div>
+                <div class="col"><div class="text-muted small">Net Cash Flow</div><div class="fw-bold @(Model.MonthNet >= 0 ? "text-success" : "text-danger")">@Money(Model.MonthNet)</div></div>
+            </div>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-calendar-week"></i> Spending by Time of Week</h6>
+            <div class="d-flex">
+                <div class="d-flex flex-column justify-content-around me-2 text-muted" style="font-size:.7rem;">
+                    @foreach (var r in Model.HeatRows) { <div style="height:34px;display:flex;align-items:center;">@r.Label</div> }
+                </div>
+                <div class="flex-grow-1">
+                    <div class="heatgrid" style="grid-template-columns:repeat(7,1fr);">
+                        @foreach (var r in Model.HeatRows)
+                        {
+                            @foreach (var c in r.Cells)
+                            {
+                                <div class="heatcell" style="height:34px;background:rgba(37,224,126,@(0.08 + c / 100.0 * 0.85).ToString(System.Globalization.CultureInfo.InvariantCulture));"></div>
+                            }
+                        }
+                    </div>
+                    <div class="d-flex justify-content-between text-muted mt-1" style="font-size:.66rem;">@foreach (var d in days) { <span>@d</span> }</div>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2 justify-content-end mt-2 text-muted" style="font-size:.7rem;">Low<span class="heatcell" style="width:14px;height:14px;background:rgba(37,224,126,.15);"></span><span class="heatcell" style="width:14px;height:14px;background:rgba(37,224,126,.5);"></span><span class="heatcell" style="width:14px;height:14px;background:rgba(37,224,126,.9);"></span>High</div>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-stars"></i> AI Recommendations</h6>
+            <div class="d-flex align-items-center justify-content-between py-2 border-bottom" style="border-color:var(--line)!important;">
+                <div class="d-flex align-items-center gap-2"><span style="color:#25e07e;"><i class="bi bi-cart"></i></span><div><div class="small fw-semibold">Tighten your top category</div><div class="text-muted" style="font-size:.74rem;">@(Model.Categories.FirstOrDefault()?.Category ?? "Spending") is your biggest outflow this month.</div></div></div>
+            </div>
+            <div class="d-flex align-items-center justify-content-between py-2 border-bottom" style="border-color:var(--line)!important;">
+                <div class="d-flex align-items-center gap-2"><span style="color:#25e07e;"><i class="bi bi-bank"></i></span><div><div class="small fw-semibold">Auto-transfer to savings</div><div class="text-muted" style="font-size:.74rem;">Schedule a payday transfer to lift your @Model.SavingsRate% savings rate.</div></div></div>
+            </div>
+            <div class="d-flex align-items-center justify-content-between py-2">
+                <div class="d-flex align-items-center gap-2"><span style="color:#25e07e;"><i class="bi bi-calendar-event"></i></span><div><div class="small fw-semibold">Smooth your bill timing</div><div class="text-muted" style="font-size:.74rem;">Spread debit dates to avoid month-end cash pressure.</div></div></div>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-pie-chart"></i> Behavior Snapshot</h6>
+            @if (Model.Categories.Any())
+            {
+                <div class="d-flex justify-content-center">
+                    <div style="position:relative;width:170px;height:170px;">
+                        <canvas id="behaviorChart"></canvas>
+                        <div style="position:absolute;inset:0;display:grid;place-items:center;text-align:center;pointer-events:none;"><div><div class="text-muted small">Total</div><div class="fw-bold">@Money(Model.Categories.Sum(c => c.Total))</div></div></div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    @foreach (var c in Model.Categories.Take(6))
+                    {
+                        var v = catVis(c.Category);
+                        <div class="d-flex align-items-center justify-content-between py-1 small">
+                            <span><i class="bi @v.icon me-2" style="color:@v.color;"></i>@c.Category</span>
+                            <span class="text-muted">@Money(c.Total) · @c.PercentOfTotal.ToString("0")%</span>
+                        </div>
+                    }
+                </div>
+            }
+            else { <p class="text-muted small mb-0">No spending recorded this month yet.</p> }
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="card-title m-0"><i class="bi bi-bell"></i> Alert Summary</h6><a class="btn btn-link p-0 small" href="@Url.Action("Index","Notifications")">View all →</a></div>
+            @if (Model.Alerts.Any())
+            {
+                @foreach (var a in Model.Alerts)
+                {
+                    <div class="d-flex align-items-center gap-3 py-2">
+                        <span style="width:2.1rem;height:2.1rem;border-radius:.6rem;display:grid;place-items:center;background:var(--glass);border:1px solid var(--line);"><i class="bi @a.Icon"></i></span>
+                        <div class="flex-grow-1 min-w-0"><div class="small fw-semibold">@a.Title</div><div class="text-muted" style="font-size:.74rem;">@a.Detail</div></div>
+                        <span class="pill @a.LevelCls">@a.Level</span>
+                    </div>
+                }
+            }
+            else { <p class="text-muted small mb-0">No active alerts — you're in good shape.</p> }
+        </div></div>
+
+        <div class="card"><div class="card-body text-center">
+            <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="card-title m-0"><i class="bi bi-speedometer2"></i> Insight Score</h6></div>
+            <div class="ring mx-auto my-2" style="--p:@Model.InsightScore;width:130px;height:130px;"><span style="font-size:1.8rem;">@Model.InsightScore</span></div>
+            <div class="text-muted small">out of 100</div>
+            <p class="small mt-2 mb-0">@(Model.InsightScore >= 75 ? "Great work — you're building strong financial habits." : Model.InsightScore >= 50 ? "Solid foundation. A few tweaks will push you higher." : "Room to grow — automate savings and tighten budgets.")</p>
+        </div></div>
+    </div>
+</div>
+
+@if (Model.Triggers.Any())
+{
+    <div class="card mt-3"><div class="card-body">
+        <h6 class="card-title mb-2"><i class="bi bi-lightbulb"></i> Top Insights</h6>
+        <div class="row g-2">
+            @foreach (var t in Model.Triggers)
+            {
+                <div class="col-md-6"><div class="d-flex align-items-center gap-2 p-2 rounded" style="border:1px solid var(--line);background:var(--glass);">
+                    <span style="color:var(--g);"><i class="bi bi-lightning-charge-fill"></i></span>
+                    <div class="min-w-0"><div class="small fw-semibold text-truncate">@t.Label</div><div class="text-muted" style="font-size:.74rem;">@t.Insight</div></div>
+                </div></div>
+            }
+        </div>
+    </div></div>
+}
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script>
+        var fc = document.getElementById('flowChart');
+        var gi = fc.getContext('2d').createLinearGradient(0, 0, 0, 120); gi.addColorStop(0, 'rgba(37,224,126,.3)'); gi.addColorStop(1, 'rgba(37,224,126,0)');
+        var ge = fc.getContext('2d').createLinearGradient(0, 0, 0, 120); ge.addColorStop(0, 'rgba(239,68,68,.25)'); ge.addColorStop(1, 'rgba(239,68,68,0)');
+        new Chart(fc, {
+            type: 'line',
+            data: { labels: @Html.Raw(Json.Serialize(Enumerable.Range(1, Model.DailyIncome.Count))),
+                datasets: [
+                    { label: 'Income', data: @Html.Raw(Json.Serialize(Model.DailyIncome)), borderColor: '#25e07e', backgroundColor: gi, fill: true, tension: .4, pointRadius: 0 },
+                    { label: 'Expenses', data: @Html.Raw(Json.Serialize(Model.DailyExpense)), borderColor: '#ef4444', backgroundColor: ge, fill: true, tension: .4, pointRadius: 0 }
+                ] },
+            options: { plugins: { legend: { labels: { color: '#9aa3b2' } } }, scales: { x: { grid: { display: false }, ticks: { color: '#7c8694', maxTicksLimit: 8 } }, y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#7c8694' } } } }
+        });
+        @if (Model.Categories.Any())
+        {
+            <text>
+            new Chart(document.getElementById('behaviorChart'), {
+                type: 'doughnut',
+                data: { labels: @Html.Raw(Json.Serialize(Model.Categories.Select(c => c.Category))),
+                    datasets: [{ data: @Html.Raw(Json.Serialize(Model.Categories.Select(c => c.Total))), backgroundColor: @Html.Raw(Json.Serialize(catColors)), borderWidth: 0, hoverOffset: 6 }] },
+                options: { cutout: '70%', plugins: { legend: { display: false } } }
+            });
+            </text>
+        }
+    </script>
+}

@@ -1,56 +1,131 @@
-@model IEnumerable<Bill>
+@model BillsPageViewModel
 @{
     ViewData["Title"] = "Bills";
+    string Money(decimal d) => d.ToString("C0");
+    var maxCash = Model.CashFlow.Count > 0 ? Math.Max(1m, Model.CashFlow.Max(c => c.Amount)) : 1m;
     var today = DateTime.UtcNow.Date;
 }
 
-<div class="page-header">
-    <h2><i class="bi bi-receipt text-primary"></i> Bills &amp; subscriptions</h2>
-    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add bill</a>
+<div class="hero">
+    <div class="page-header">
+        <div><h2>Planning</h2><p class="text-muted m-0">Set goals, stay ahead of bills, and eliminate debt with a plan that works.</p></div>
+        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add Bill</a>
+    </div>
+    <partial name="_PlanningTabs" model="@("bills")" />
 </div>
 
-@if (!Model.Any())
-{
-    <div class="card"><div class="empty-state">
-        <i class="bi bi-receipt-cutoff"></i>
-        <h5>No bills tracked</h5>
-        <p>Add your recurring bills and subscriptions so nothing slips through.</p>
-        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add your first bill</a>
+@if (TempData["Success"] != null) { <div class="alert alert-success mt-3">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert alert-danger mt-3">@TempData["Error"]</div> }
+
+<!-- KPIs -->
+<div class="row row-cols-2 row-cols-xl-4 g-3 my-1">
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Due This Month</div><div class="val">@Money(Model.DueThisMonth)</div><div class="text-muted small">@Model.DueCount bill@(Model.DueCount == 1 ? "" : "s")</div></div><span class="chip-ico"><i class="bi bi-calendar3"></i></span></div>
     </div></div>
-}
-else
-{
-    <div class="card"><div class="card-body p-0"><div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
-        <thead><tr>
-            <th scope="col">Name</th><th scope="col">Amount</th><th scope="col">Category</th>
-            <th scope="col">Next due</th><th scope="col">Every</th><th scope="col" class="text-end">Actions</th>
-        </tr></thead>
-        <tbody>
-        @foreach (var b in Model)
-        {
-            var days = (b.NextDueDate.Date - today).Days;
-            var status = days < 0 ? ("danger", "Overdue") : days <= b.ReminderDaysBefore ? ("warning", $"Due in {days}d") : ("light", b.NextDueDate.ToString("dd MMM"));
-            <tr>
-                <td class="fw-semibold">@b.Name</td>
-                <td>@b.Amount.ToString("C")</td>
-                <td><span class="badge bg-light text-dark border">@b.Category</span></td>
-                <td><span class="badge rounded-pill bg-@status.Item1 @(status.Item1=="light" ? "text-dark border" : "")">@status.Item2</span> <span class="small text-muted">@b.NextDueDate.ToString("dd MMM yyyy")</span></td>
-                <td class="text-muted">@(((Enum)b.Recurrence).Humanize())</td>
-                <td class="text-end text-nowrap">
-                    <form asp-action="MarkPaid" method="post" class="d-inline">
-                        <input type="hidden" name="id" value="@b.Id" />
-                        <button class="btn btn-sm btn-outline-success" title="Mark paid (records an expense)"><i class="bi bi-check2-circle"></i> Paid</button>
-                    </form>
-                    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = b.Id })"><i class="bi bi-pencil"></i></a>
-                    <form asp-action="Delete" method="post" class="d-inline">
-                        <input type="hidden" name="id" value="@b.Id" />
-                        <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this bill?');"><i class="bi bi-trash"></i></button>
-                    </form>
-                </td>
-            </tr>
-        }
-        </tbody>
-    </table>
-    </div></div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Paid This Month</div><div class="val">@Money(Model.PaidThisMonth)</div><div class="text-muted small">@Model.PaidCount bill@(Model.PaidCount == 1 ? "" : "s")</div></div><span class="chip-ico"><i class="bi bi-check-circle"></i></span></div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Upcoming in 7 Days</div><div class="val">@Model.Upcoming7Count</div><div class="text-muted small">@Money(Model.Upcoming7)</div></div><span class="chip-ico cyan"><i class="bi bi-hourglass-split"></i></span></div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Overdue</div><div class="val @(Model.OverdueCount > 0 ? "text-danger" : "")">@Model.OverdueCount</div><div class="text-muted small">@Money(Model.Overdue)</div></div><span class="chip-ico red"><i class="bi bi-exclamation-octagon"></i></span></div>
+    </div></div>
+</div>
+
+<div class="dash-grid">
+    <div class="dash-col">
+        <div class="card"><div class="card-body p-0">
+            <div class="d-flex justify-content-between align-items-center p-3 pb-2"><h6 class="card-title m-0"><i class="bi bi-arrow-repeat"></i> Recurring Bills</h6></div>
+            @if (!Model.Bills.Any())
+            {
+                <div class="empty-state"><i class="bi bi-receipt"></i><h5>No bills yet</h5><p>Add a recurring bill to track due dates and payments.</p>
+                    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add your first bill</a></div>
+            }
+            else
+            {
+                <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Bill</th><th>Category</th><th>Due Date</th><th>Amount</th><th>Auto-Pay</th><th>Status</th><th class="text-end">Action</th></tr></thead>
+                    <tbody>
+                    @foreach (var r in Model.Bills)
+                    {
+                        <tr>
+                            <td><div class="d-flex align-items-center gap-2">
+                                <span style="width:2.2rem;height:2.2rem;border-radius:.6rem;display:grid;place-items:center;color:@r.Color;background:color-mix(in srgb,@r.Color 16%,transparent);"><i class="bi @r.Icon"></i></span>
+                                <span class="fw-semibold">@r.Bill.Name</span></div></td>
+                            <td class="text-muted">@r.Bill.Category</td>
+                            <td class="small text-nowrap">@r.Bill.NextDueDate.ToString("dd MMM yyyy")</td>
+                            <td class="fw-semibold">@r.Bill.Amount.ToString("C2")</td>
+                            <td>
+                                <form asp-action="ToggleAutoPay" method="post" class="m-0">
+                                    <input type="hidden" name="id" value="@r.Bill.Id" />
+                                    <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" role="switch" onchange="this.form.submit()" @(r.Bill.AutoPay ? "checked" : "")></div>
+                                </form>
+                            </td>
+                            <td><span class="pill @r.StatusCls">@r.Status</span></td>
+                            <td class="text-end text-nowrap">
+                                @if (!r.Paid)
+                                {
+                                    <form asp-action="MarkPaid" method="post" class="d-inline"><input type="hidden" name="id" value="@r.Bill.Id" />
+                                        <button class="btn btn-sm btn-outline-success icon-action" title="Mark paid"><i class="bi bi-check-lg"></i></button></form>
+                                }
+                                <a class="btn btn-sm btn-outline-secondary icon-action" href="@Url.Action("Edit", new { id = r.Bill.Id })" title="Edit"><i class="bi bi-pencil"></i></a>
+                                <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('Delete this bill?');"><input type="hidden" name="id" value="@r.Bill.Id" />
+                                    <button class="btn btn-sm btn-outline-danger icon-action" title="Delete"><i class="bi bi-trash"></i></button></form>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table></div>
+                <a class="d-block text-center my-3 mx-3 py-3 rounded text-decoration-none fw-semibold" href="@Url.Action("Create")" style="border:1px dashed var(--line);color:var(--g);"><i class="bi bi-plus-lg"></i> Add New Bill</a>
+            }
+        </div></div>
+    </div>
+
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-calendar-week"></i> Bills Calendar</h6>
+            <div class="text-muted small mb-2">@Model.WeekStart.ToString("dd MMM") – @Model.WeekStart.AddDays(6).ToString("dd MMM yyyy")</div>
+            <div class="d-flex gap-1">
+                @foreach (var d in Model.Week)
+                {
+                    var isToday = d.Day == today;
+                    <div class="flex-fill text-center p-1 rounded" style="border:1px solid @(isToday ? "rgba(37,224,126,.5)" : "var(--line)");background:@(isToday ? "var(--g-soft)" : "var(--glass)");min-height:74px;">
+                        <div class="text-muted" style="font-size:.6rem;">@d.Day.ToString("ddd").ToUpper()</div>
+                        <div class="fw-bold @(isToday ? "text-success" : "")">@d.Day.Day</div>
+                        @foreach (var b in d.Bills.Take(2))
+                        {
+                            <div class="text-truncate" style="font-size:.56rem;color:var(--g);" title="@b.Name @b.Amount.ToString("C0")">●@b.Amount.ToString("C0")</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-1"><i class="bi bi-graph-up-arrow"></i> Cash Flow Impact</h6>
+            <div class="text-muted small mb-2">Bills this month · <span class="fw-semibold text-light">@Money(Model.DueThisMonth)</span></div>
+            <canvas id="cashChart" height="150"></canvas>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title"><i class="bi bi-stars"></i> Smart Insight</h6>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span style="font-size:1.8rem;color:var(--g);filter:drop-shadow(0 0 14px var(--g-glow));"><i class="bi bi-lightbulb-fill"></i></span>
+                <p class="small mb-0">@Model.Insight</p>
+            </div>
+        </div></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script>
+        new Chart(document.getElementById('cashChart'), {
+            type: 'bar',
+            data: { labels: @Html.Raw(Json.Serialize(Model.CashFlow.Select(c => c.Label))),
+                    datasets: [{ data: @Html.Raw(Json.Serialize(Model.CashFlow.Select(c => c.Amount))), backgroundColor: 'rgba(37,224,126,.7)', borderRadius: 3, barPercentage: .9, categoryPercentage: .9 }] },
+            options: { plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#7c8694', maxTicksLimit: 8 } }, y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#7c8694' } } } }
+        });
+    </script>
 }

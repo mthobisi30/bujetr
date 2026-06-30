@@ -1,56 +1,145 @@
 @model CalendarViewModel
 @{
     ViewData["Title"] = "Calendar";
+    string Money(decimal d) => d.ToString("C0");
     var first = new DateTime(Model.Year, Model.Month, 1);
     var daysInMonth = DateTime.DaysInMonth(Model.Year, Model.Month);
-    var startOffset = (int)first.DayOfWeek; // 0 = Sunday
-    var prev = first.AddMonths(-1);
-    var next = first.AddMonths(1);
-    var today = DateTime.UtcNow.Date;
+    var offset = ((int)first.DayOfWeek + 6) % 7; // Mon=0
+    var prev = first.AddMonths(-1); var next = first.AddMonths(1);
+    var todayN = (DateTime.UtcNow.Year == Model.Year && DateTime.UtcNow.Month == Model.Month) ? DateTime.UtcNow.Day : -1;
+
+    var billDue = Model.Days.Values.Sum(d => d.Bills.Count);
+    var paydays = Model.Days.Values.Count(d => d.Income > 0);
+    var events = billDue + paydays;
+    var billDayTotals = Model.Days.Where(kv => kv.Value.Bills.Any()).ToDictionary(kv => kv.Key, kv => kv.Value.Bills.Sum(b => b.Amount));
+    var avgBillDay = billDayTotals.Any() ? billDayTotals.Values.Average() : 0;
+    var highRisk = billDayTotals.Count(kv => kv.Value > avgBillDay * 1.2m);
+
+    // weekly cash flow
+    var weeks = new List<(string Label, decimal Net)>();
+    for (var w = 0; w < 5; w++)
+    {
+        var lo = w * 7 + 1; var hi = Math.Min(lo + 6, daysInMonth);
+        if (lo > daysInMonth) break;
+        decimal net = 0;
+        for (var d = lo; d <= hi; d++) if (Model.Days.TryGetValue(d, out var c)) net += c.Income - c.Spend - c.Bills.Sum(b => b.Amount);
+        weeks.Add(($"{lo}–{hi}", net));
+    }
+
+    // upcoming timeline
+    var timeline = new List<(DateTime Date, string Name, string Cat, decimal Amount, bool Income)>();
+    foreach (var kv in Model.Days)
+    {
+        var date = new DateTime(Model.Year, Model.Month, kv.Key);
+        foreach (var b in kv.Value.Bills) timeline.Add((date, b.Name, b.Category, b.Amount, false));
+        if (kv.Value.Income > 0) timeline.Add((date, "Income", "Income", kv.Value.Income, true));
+    }
+    timeline = timeline.OrderBy(t => t.Date).Take(6).ToList();
+    var clusterWeek = weeks.OrderBy(w => w.Net).FirstOrDefault();
 }
 
-<div class="page-header">
-    <h2><i class="bi bi-calendar3 text-primary"></i> Calendar</h2>
-    <div class="d-flex align-items-center gap-2">
-        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index", new { year = prev.Year, month = prev.Month })"><i class="bi bi-chevron-left"></i></a>
-        <span class="fw-semibold">@first.ToString("MMMM yyyy")</span>
-        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index", new { year = next.Year, month = next.Month })"><i class="bi bi-chevron-right"></i></a>
+<div class="hero">
+    <div class="page-header">
+        <div><h2>Insights</h2><p class="text-muted m-0">Monitor patterns, understand your money, and automate smarter financial decisions.</p></div>
+    </div>
+    <partial name="_InsightsTabs" model="@("calendar")" />
+</div>
+
+<!-- KPIs -->
+<div class="row row-cols-2 row-cols-xl-4 g-3 my-1">
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Events This Month</div><div class="val">@events</div><div class="text-muted small">across all categories</div></div><span class="chip-ico"><i class="bi bi-calendar3"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Bills Due</div><div class="val">@billDue</div><div class="text-muted small">total payments due</div></div><span class="chip-ico violet"><i class="bi bi-wallet2"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Paydays</div><div class="val">@paydays</div><div class="text-muted small">income this month</div></div><span class="chip-ico cyan"><i class="bi bi-cash-coin"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">High-risk Dates</div><div class="val @(highRisk > 0 ? "text-danger" : "")">@highRisk</div><div class="text-muted small">cash flow pressure</div></div><span class="chip-ico red"><i class="bi bi-exclamation-triangle"></i></span></div></div></div>
+</div>
+
+<div class="dash-grid">
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="card-title m-0"><i class="bi bi-calendar-week"></i> Financial Calendar</h6>
+                <div class="d-flex align-items-center gap-2">
+                    <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("Index", new { year = prev.Year, month = prev.Month })"><i class="bi bi-chevron-left"></i></a>
+                    <span class="top-chip py-1 px-2" style="font-size:.8rem;">@first.ToString("MMMM yyyy")</span>
+                    <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("Index", new { year = next.Year, month = next.Month })"><i class="bi bi-chevron-right"></i></a>
+                </div>
+            </div>
+            <div class="cal-grid mb-1">@foreach (var d in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" }) { <div class="text-muted small text-center">@d</div> }</div>
+            <div class="cal-grid">
+                @for (var i = 0; i < offset; i++) { <div></div> }
+                @for (var day = 1; day <= daysInMonth; day++)
+                {
+                    Model.Days.TryGetValue(day, out var cell);
+                    <div class="cal-cell @(day == todayN ? "today" : "")">
+                        <div class="fw-semibold @(day == todayN ? "text-success" : "")">@day</div>
+                        @if (cell != null)
+                        {
+                            @foreach (var b in cell.Bills.Take(2))
+                            {
+                                <div class="text-truncate" style="font-size:.62rem;"><span class="cal-dot" style="background:#ef4444;"></span>@b.Name</div>
+                            }
+                            @if (cell.Income > 0)
+                            {
+                                <div class="text-truncate" style="font-size:.62rem;"><span class="cal-dot" style="background:#3b82f6;"></span>Income</div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+            <div class="d-flex flex-wrap gap-3 mt-3 small text-muted">
+                <span><span class="cal-dot" style="background:#ef4444;"></span>Bills</span>
+                <span><span class="cal-dot" style="background:#3b82f6;"></span>Income</span>
+                <span><span class="cal-dot" style="background:#f59e0b;"></span>Reminders</span>
+                <span><span class="cal-dot" style="background:#25e07e;"></span>Automation</span>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-2"><i class="bi bi-list-check"></i> Upcoming Timeline</h6>
+            @if (timeline.Any())
+            {
+                @foreach (var t in timeline)
+                {
+                    <div class="d-flex align-items-center gap-3 py-2">
+                        <div class="text-muted small text-nowrap" style="width:3.4rem;">@t.Date.ToString("dd MMM")</div>
+                        <div class="flex-grow-1 min-w-0"><div class="small fw-semibold text-truncate">@t.Name</div><div class="text-muted" style="font-size:.72rem;">@t.Cat</div></div>
+                        <div class="@(t.Income ? "text-success" : "text-danger") fw-semibold small">@(t.Income ? "+" : "")@Money(t.Amount)</div>
+                    </div>
+                }
+            }
+            else { <p class="text-muted small mb-0">No scheduled events this month.</p> }
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-2"><i class="bi bi-graph-up"></i> Cash Flow by Week</h6>
+            <canvas id="weekChart" height="150"></canvas>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-2"><i class="bi bi-bullseye"></i> Focus Windows</h6>
+            @if (clusterWeek.Label != null && clusterWeek.Net < 0)
+            {
+                <div class="d-flex align-items-center gap-3 py-2"><span style="color:#ef4444;"><i class="bi bi-exclamation-octagon"></i></span><div><div class="small fw-semibold">@clusterWeek.Label @first.ToString("MMM") · Bill cluster</div><div class="text-muted" style="font-size:.74rem;">Heaviest outflow window — keep a buffer ready.</div></div></div>
+            }
+            @if (paydays > 0)
+            {
+                <div class="d-flex align-items-center gap-3 py-2"><span style="color:#25e07e;"><i class="bi bi-cash-coin"></i></span><div><div class="small fw-semibold">Payday window</div><div class="text-muted" style="font-size:.74rem;">Great time to schedule savings transfers.</div></div></div>
+            }
+            <div class="d-flex align-items-center gap-3 py-2"><span style="color:#8b5cf6;"><i class="bi bi-bar-chart"></i></span><div><div class="small fw-semibold">Weekend spending</div><div class="text-muted" style="font-size:.74rem;">Watch discretionary spend on Sat &amp; Sun.</div></div></div>
+        </div></div>
     </div>
 </div>
 
-<div class="card"><div class="card-body">
-    <div class="row row-cols-7 g-1 text-center fw-semibold text-muted small mb-1">
-        @foreach (var d in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" })
-        {
-            <div class="col">@d</div>
-        }
-    </div>
-    <div class="row row-cols-7 g-1">
-        @for (var i = 0; i < startOffset; i++)
-        {
-            <div class="col"><div class="p-2"></div></div>
-        }
-        @for (var day = 1; day <= daysInMonth; day++)
-        {
-            var date = new DateTime(Model.Year, Model.Month, day);
-            Model.Days.TryGetValue(day, out var cell);
-            <div class="col">
-                <div class="border rounded p-1 h-100 @(date == today ? "border-primary" : "")" style="min-height:84px;">
-                    <div class="small fw-semibold @(date == today ? "text-primary" : "")">@day</div>
-                    @if (cell != null)
-                    {
-                        @if (cell.Spend > 0) { <div class="small text-danger">-@cell.Spend.ToString("C0")</div> }
-                        @if (cell.Income > 0) { <div class="small text-success">+@cell.Income.ToString("C0")</div> }
-                        @foreach (var b in cell.Bills)
-                        {
-                            <div class="badge bg-warning text-dark text-truncate d-block" title="@b.Name @b.Amount.ToString("C")" style="max-width:100%;"><i class="bi bi-receipt"></i> @b.Name</div>
-                        }
-                    }
-                </div>
-            </div>
-        }
-    </div>
-    <div class="mt-3 small text-muted">
-        <span class="text-danger">-amount</span> spent · <span class="text-success">+amount</span> income · <span class="badge bg-warning text-dark">bill</span> due
-    </div>
-</div></div>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script>
+        new Chart(document.getElementById('weekChart'), {
+            type: 'line',
+            data: { labels: @Html.Raw(Json.Serialize(weeks.Select(w => w.Label))),
+                datasets: [{ data: @Html.Raw(Json.Serialize(weeks.Select(w => w.Net))), borderColor: '#25e07e', backgroundColor: 'rgba(37,224,126,.15)', fill: true, tension: .4, pointRadius: 3, pointBackgroundColor: '#25e07e' }] },
+            options: { plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#7c8694' } }, y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#7c8694' } } } }
+        });
+    </script>
+}

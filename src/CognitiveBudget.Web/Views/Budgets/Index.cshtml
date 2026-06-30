@@ -1,88 +1,165 @@
-@model BudgetProgress
+@model BudgetIndexViewModel
 @{
     ViewData["Title"] = "Budget";
-    var monthStart = new DateTime(Model.Year, Model.Month, 1);
+    string Money(decimal d) => d.ToString("C0");
+    var p = Model.Progress;
+    var monthStart = new DateTime(p.Year, p.Month, 1);
     var prev = monthStart.AddMonths(-1);
     var next = monthStart.AddMonths(1);
-    string Money(decimal d) => d.ToString("C0");
-}
+    var editUrl = Url.Action("Edit", new { year = p.Year, month = p.Month });
 
-<div class="page-header">
-    <h2><i class="bi bi-wallet2 text-primary"></i> Budget</h2>
-    <div class="d-flex align-items-center gap-2">
-        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index", new { year = prev.Year, month = prev.Month })"><i class="bi bi-chevron-left"></i></a>
-        <span class="fw-semibold">@monthStart.ToString("MMMM yyyy")</span>
-        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index", new { year = next.Year, month = next.Month })"><i class="bi bi-chevron-right"></i></a>
-        <a class="btn btn-sm btn-primary ms-2" href="@Url.Action("Edit", new { year = Model.Year, month = Model.Month })"><i class="bi bi-pencil"></i> Edit budget</a>
-    </div>
-</div>
+    var atRisk = p.Categories.Where(c => c.Over || c.Percent >= .8).OrderByDescending(c => c.Percent).ToList();
+    var daysInMonth = DateTime.DaysInMonth(p.Year, p.Month);
+    var isCurrent = p.Year == DateTime.UtcNow.Year && p.Month == DateTime.UtcNow.Month;
+    var daysLeft = isCurrent ? Math.Max(1, daysInMonth - DateTime.UtcNow.Day) : 1;
+    var dailyLeft = Model.Remaining > 0 ? Model.Remaining / daysLeft : 0;
+    var maxDaily = Model.DailySpending.Count > 0 ? Math.Max(1m, Model.DailySpending.Max(x => x.Amount)) : 1m;
 
-<!-- Income / spend / net summary -->
-<div class="row g-3 mb-4">
-    <div class="col-6 col-lg-3">
-        <div class="card stat-card h-100">
-            <div class="d-flex justify-content-between"><span class="stat-label">Income</span><i class="bi bi-arrow-down-left stat-icon text-success"></i></div>
-            <div class="stat-value text-success">@Money(Model.TotalIncome)</div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card stat-card h-100">
-            <div class="d-flex justify-content-between"><span class="stat-label">Spent</span><i class="bi bi-arrow-up-right stat-icon text-primary"></i></div>
-            <div class="stat-value">@Money(Model.TotalSpent)</div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card stat-card h-100">
-            <div class="d-flex justify-content-between"><span class="stat-label">Net</span><i class="bi bi-graph-up-arrow stat-icon text-info"></i></div>
-            <div class="stat-value @(Model.Net < 0 ? "text-danger" : "text-success")">@Money(Model.Net)</div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card stat-card h-100">
-            <div class="d-flex justify-content-between"><span class="stat-label">Budgeted</span><i class="bi bi-bullseye stat-icon text-warning"></i></div>
-            <div class="stat-value">@Money(Model.OverallLimit ?? Model.TotalLimit)</div>
-        </div>
-    </div>
-</div>
-
-@if (!Model.Exists || !Model.Categories.Any())
-{
-    <div class="card"><div class="empty-state">
-        <i class="bi bi-wallet"></i>
-        <h5>No budget set for @monthStart.ToString("MMMM yyyy")</h5>
-        <p>Set category limits to track your spending against a plan and get overspend warnings.</p>
-        <a class="btn btn-primary" href="@Url.Action("Edit", new { year = Model.Year, month = Model.Month })"><i class="bi bi-plus-lg"></i> Set up budget</a>
-    </div></div>
-}
-else
-{
-    @if (Model.OverallLimit.HasValue)
+    Func<string, (string color, string icon)> cat = c => (c ?? "").ToLower() switch
     {
-        var op = Model.OverallLimit.Value > 0 ? Math.Min(1.0, (double)(Model.TotalSpent / Model.OverallLimit.Value)) : 0;
-        <div class="card mb-3"><div class="card-body">
-            <div class="d-flex justify-content-between mb-1">
-                <span class="fw-semibold">Overall</span>
-                <span class="@(Model.OverAll ? "text-danger fw-semibold" : "text-muted")">@Money(Model.TotalSpent) / @Money(Model.OverallLimit.Value)</span>
-            </div>
-            <div class="progress" role="progressbar" aria-valuenow="@((int)(op*100))" aria-valuemin="0" aria-valuemax="100" style="height:.8rem;">
-                <div class="progress-bar @(Model.OverAll ? "bg-danger" : "bg-primary")" style="width:@((int)(op*100))%"></div>
-            </div>
-        </div></div>
-    }
-
-    <div class="card"><div class="card-body">
-        <h6 class="card-title mb-3">By category</h6>
-        @foreach (var c in Model.Categories)
-        {
-            <div class="mb-3">
-                <div class="d-flex justify-content-between mb-1">
-                    <span>@c.Category @if (c.Over) {<span class="badge bg-danger ms-1">Over by @Money(c.Spent - c.Limit)</span>}</span>
-                    <span class="@(c.Over ? "text-danger fw-semibold" : "text-muted")">@Money(c.Spent) / @Money(c.Limit)</span>
-                </div>
-                <div class="progress" role="progressbar" aria-valuenow="@((int)(c.Percent*100))" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar @(c.Over ? "bg-danger" : (c.Percent >= 0.8 ? "bg-warning" : "bg-success"))" style="width:@((int)(c.Percent*100))%"></div>
-                </div>
-            </div>
-        }
-    </div></div>
+        "groceries" => ("#3b82f6", "bi-cart"),
+        "transport" => ("#f59e0b", "bi-bus-front"),
+        "entertainment" => ("#8b5cf6", "bi-controller"),
+        "dining" or "eating out" => ("#f59e0b", "bi-cup-hot"),
+        "shopping" => ("#ec4899", "bi-bag"),
+        "utilities" => ("#06b6d4", "bi-lightning-charge"),
+        "health" => ("#ef4444", "bi-heart-pulse"),
+        "savings" => ("#25e07e", "bi-piggy-bank"),
+        "clothing" => ("#06b6d4", "bi-bag-heart"),
+        "housing" => ("#06b6d4", "bi-house"),
+        _ => ("#9aa3b2", "bi-tag")
+    };
 }
+
+<div class="hero">
+    <div class="page-header">
+        <div><h2>Budget</h2><p class="text-muted m-0">Plan smarter, spend better, and reach your goals.</p></div>
+        <a class="btn btn-primary" href="@editUrl"><i class="bi bi-plus-lg"></i> Create Budget</a>
+    </div>
+</div>
+
+<!-- KPI row -->
+<div class="row row-cols-2 row-cols-xl-4 g-3 mb-4">
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between align-items-start"><span class="chip-ico"><i class="bi bi-wallet2"></i></span>
+            <span class="delta @(Model.BudgetDeltaPct >= 0 ? "delta-up" : "delta-down")">@(Model.BudgetDeltaPct >= 0 ? "+" : "")@Model.BudgetDeltaPct.ToString("0.0")%</span></div>
+        <div class="val">@Money(Model.Budget)</div><div class="lbl">Total Budget · this month</div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between align-items-start"><span class="chip-ico red"><i class="bi bi-graph-up-arrow"></i></span>
+            <span class="delta @(Model.SpentDeltaPct <= 0 ? "delta-up" : "delta-down")">@(Model.SpentDeltaPct >= 0 ? "+" : "")@Model.SpentDeltaPct.ToString("0.0")%</span></div>
+        <div class="val">@Money(Model.Spent)</div><div class="lbl">Total Spent · this month</div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between align-items-start"><span class="chip-ico cyan"><i class="bi bi-piggy-bank"></i></span>
+            <span class="delta @(Model.RemainingDeltaPct >= 0 ? "delta-up" : "delta-down")">@(Model.RemainingDeltaPct >= 0 ? "+" : "")@Model.RemainingDeltaPct.ToString("0.0")%</span></div>
+        <div class="val @(Model.Remaining < 0 ? "text-danger" : "")">@Money(Model.Remaining)</div><div class="lbl">Remaining · left to spend</div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex align-items-center gap-3">
+            <div class="ring" style="--p:@Model.UsedPct;width:66px;height:66px;"><span style="font-size:.85rem;">@Model.UsedPct%</span></div>
+            <div><div class="lbl">Budget Used</div><div class="val" style="font-size:1.35rem;">@Money(Model.Spent)</div><div class="text-muted small">of @Money(Model.Budget)</div></div>
+        </div>
+        <div class="progress mt-2"><div class="progress-bar @(Model.UsedPct >= 90 ? "bg-danger" : "bg-primary")" style="width:@Model.UsedPct%"></div></div>
+    </div></div>
+</div>
+
+<div class="dash-grid">
+    <!-- MAIN: categories -->
+    <div class="dash-col">
+        <div class="card"><div class="card-body p-0">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 pb-2">
+                <h6 class="card-title m-0"><i class="bi bi-grid-1x2"></i> Budget Categories</h6>
+                <div class="d-flex align-items-center gap-2">
+                    <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("Index", new { year = prev.Year, month = prev.Month })"><i class="bi bi-chevron-left"></i></a>
+                    <span class="top-chip py-1 px-2" style="font-size:.8rem;">@monthStart.ToString("MMM yyyy")</span>
+                    <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("Index", new { year = next.Year, month = next.Month })"><i class="bi bi-chevron-right"></i></a>
+                    <a class="btn btn-outline-secondary btn-sm" href="@editUrl" title="Edit limits"><i class="bi bi-sliders"></i></a>
+                </div>
+            </div>
+
+            @if (!p.Exists || !p.Categories.Any())
+            {
+                <div class="empty-state"><i class="bi bi-wallet"></i><h5>No budget set for @monthStart.ToString("MMMM yyyy")</h5>
+                    <p>Set category limits to track spending against a plan.</p>
+                    <a class="btn btn-primary" href="@editUrl"><i class="bi bi-plus-lg"></i> Set up budget</a></div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead><tr><th>Category</th><th>Budget</th><th>Spent</th><th style="min-width:160px;">Progress</th><th>Status</th><th class="text-end">Action</th></tr></thead>
+                        <tbody>
+                        @foreach (var c in p.Categories)
+                        {
+                            var ic = cat(c.Category);
+                            var pct = (int)Math.Round(c.Percent * 100);
+                            var status = c.Over ? ("Over", "pill-red") : c.Percent >= .8 ? ("At Risk", "pill-amber") : ("On Track", "pill-green");
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span style="width:2.1rem;height:2.1rem;border-radius:.6rem;display:grid;place-items:center;color:@ic.color;background:color-mix(in srgb,@ic.color 16%,transparent);"><i class="bi @ic.icon"></i></span>
+                                        <div><div class="fw-semibold">@c.Category</div><div class="text-muted" style="font-size:.74rem;">Monthly</div></div>
+                                    </div>
+                                </td>
+                                <td>@Money(c.Limit)</td>
+                                <td>@Money(c.Spent)</td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="small fw-semibold" style="width:2.4rem;">@pct%</span>
+                                        <div class="progress flex-grow-1"><div class="progress-bar @(c.Over ? "bg-danger" : c.Percent >= .8 ? "bg-warning" : "bg-primary")" style="width:@Math.Min(100, pct)%"></div></div>
+                                    </div>
+                                </td>
+                                <td><span class="pill @status.Item2">@status.Item1</span></td>
+                                <td class="text-end"><a class="btn btn-sm btn-outline-secondary icon-action" href="@editUrl"><i class="bi bi-three-dots"></i></a></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                <a class="d-block text-center my-3 mx-3 py-3 rounded text-decoration-none fw-semibold" href="@editUrl" style="border:1px dashed var(--line);color:var(--g);"><i class="bi bi-plus-lg"></i> Add Category</a>
+            }
+        </div></div>
+    </div>
+
+    <!-- RAIL -->
+    <div class="dash-col">
+        <div class="card"><div class="card-body text-center">
+            <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="card-title m-0"><i class="bi bi-speedometer2"></i> Budget Progress</h6><span class="top-chip py-1 px-2" style="font-size:.78rem;">@monthStart.ToString("MMM")</span></div>
+            <div class="ring mx-auto my-2" style="--p:@Model.UsedPct;width:130px;height:130px;"><span style="font-size:1.6rem;">@Model.UsedPct%</span></div>
+            <div class="text-muted small mb-3">of @Money(Model.Budget) used</div>
+            <div class="d-flex justify-content-between small mb-3">
+                <div class="text-start"><div class="text-muted">Remaining</div><div class="fw-semibold">@Money(Model.Remaining)</div></div>
+                <div class="text-end"><div class="text-muted">Daily avg. left</div><div class="fw-semibold">@Money(dailyLeft)</div></div>
+            </div>
+            <div class="sparks">@foreach (var d in Model.DailySpending) { var h = (int)Math.Round((double)(d.Amount / maxDaily) * 100); <i style="height:@Math.Max(6, h)%"></i> }</div>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="card-title m-0"><i class="bi bi-exclamation-triangle"></i> Over-Budget Watch</h6><span class="pill pill-amber">@atRisk.Count</span></div>
+            @if (atRisk.Any())
+            {
+                @foreach (var c in atRisk.Take(5))
+                {
+                    var pct = (int)Math.Round(c.Percent * 100);
+                    <div class="py-2">
+                        <div class="d-flex justify-content-between small"><span class="fw-semibold">@c.Category</span><span class="@(c.Over ? "text-danger" : "text-warning")">@Money(c.Spent) / @Money(c.Limit)</span></div>
+                        <div class="text-muted" style="font-size:.74rem;">@pct% of budget used</div>
+                        <div class="progress mt-1"><div class="progress-bar @(c.Over ? "bg-danger" : "bg-warning")" style="width:@Math.Min(100, pct)%"></div></div>
+                    </div>
+                }
+                <a class="btn btn-link p-0 mt-1 small" href="@Url.Action("Index","Notifications")">View all alerts →</a>
+            }
+            else { <p class="text-muted small mb-0">Every category is comfortably on track.</p> }
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title"><i class="bi bi-stars"></i> Smart Insight</h6>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span style="font-size:1.8rem;color:@(Model.InsightPositive ? "var(--g)" : "#f59e0b");filter:drop-shadow(0 0 14px @(Model.InsightPositive ? "var(--g-glow)" : "rgba(245,158,11,.4)"));"><i class="bi @(Model.InsightPositive ? "bi-lightbulb-fill" : "bi-exclamation-circle-fill")"></i></span>
+                <p class="small mb-0">@Model.SmartInsight</p>
+            </div>
+            <a class="btn btn-link p-0 mt-2 small" href="@Url.Action("Index","Reports")">View details →</a>
+        </div></div>
+    </div>
+</div>

@@ -1,236 +1,309 @@
 @model DashboardViewModel
 @{
     ViewData["Title"] = "Dashboard";
-    var heededRate = Model.NudgesShown > 0 ? (double)Model.NudgesHeeded / Model.NudgesShown : 0;
-    var hasData = Model.TransactionCount > 0 || Model.RecentTransactions.Any();
+    string Money(decimal d) => d.ToString("C0");
+
+    var hour = DateTime.Now.Hour;
+    var greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+    var who = (User.Identity?.Name ?? "there").Split('@')[0];
+    who = string.IsNullOrEmpty(who) ? "there" : char.ToUpper(who[0]) + who.Substring(1);
+
+    var blimit = Model.Budget?.OverallLimit ?? Model.Budget?.TotalLimit ?? 0m;
+    var bspent = Model.Budget?.TotalSpent ?? 0m;
+    var bpct = blimit > 0 ? (int)Math.Min(100, (double)(bspent / blimit) * 100) : 0;
+    var remaining = blimit - bspent;
+    var daysLeft = Math.Max(1, DateTime.DaysInMonth(DateTime.UtcNow.Year, DateTime.UtcNow.Month) - DateTime.UtcNow.Day);
+    var dailyLeft = remaining > 0 ? remaining / daysLeft : 0;
+
+    var palette = new[] { "#25e07e", "#8b5cf6", "#f59e0b", "#06b6d4", "#ef4444", "#10b981", "#ec4899", "#9aa3b2" };
+    var catTotal = Model.CategoryTotals.Sum(c => c.Total);
+    var catColors = Enumerable.Range(0, Model.CategoryTotals.Count).Select(i => palette[i % palette.Length]).ToArray();
+    var moodTotal = Model.MoodSpending.Sum(m => m.Total);
+
+    var fgSaved = Model.FeaturedGoal?.Contributions.Sum(c => c.Amount) ?? 0m;
+    var fgTarget = Model.FeaturedGoal?.TargetAmount ?? 0m;
+    var fgPct = fgTarget > 0 ? (int)Math.Min(100, (double)(fgSaved / fgTarget) * 100) : 0;
+
+    var maxDaily = Model.DailySpending.Count > 0 ? Math.Max(1m, Model.DailySpending.Max(p => p.Amount)) : 1m;
+
+    Func<string, string> catPill = cat => (cat ?? "").ToLower() switch
+    {
+        "groceries" => "pill-green",
+        "entertainment" => "pill-violet",
+        "health" => "pill-red",
+        "transport" => "pill-amber",
+        "dining" or "eating out" => "pill-amber",
+        "shopping" => "pill-cyan",
+        "salary" or "side hustle" => "pill-green",
+        "utilities" or "subscriptions" or "housing" => "pill-cyan",
+        _ => "pill-gray"
+    };
+    Func<string, string> moodPill = c => c switch { "success" => "pill-green", "danger" => "pill-red", "warning" => "pill-amber", "secondary" => "pill-gray", _ => "pill-cyan" };
 }
 
-<div class="page-header">
-    <h2><i class="bi bi-speedometer2 text-primary"></i> Dashboard</h2>
-    <form asp-action="RefreshTriggers" method="post" class="m-0">
-        <button class="btn btn-outline-primary btn-sm" title="Re-analyse your transactions for new patterns">
-            <i class="bi bi-arrow-repeat"></i> Re-run analysis
-        </button>
-    </form>
+<div class="hero">
+    <h1>@greet, @who</h1>
+    <p>Here's your financial overview for @DateTime.UtcNow.ToString("MMMM yyyy")</p>
 </div>
 
-@if (!hasData)
-{
-    <div class="card">
-        <div class="empty-state">
-            <i class="bi bi-bar-chart-line"></i>
-            <h5>No data yet</h5>
-            <p>Add a few transactions and your spending insights will appear here.</p>
-            <a class="btn btn-primary" href="@Url.Action("Create","Transactions")"><i class="bi bi-plus-lg"></i> Add a transaction</a>
-            <a class="btn btn-outline-secondary" href="@Url.Action("Upload","Transactions")"><i class="bi bi-upload"></i> Import CSV</a>
-        </div>
-    </div>
-    return;
-}
+<div class="dash-grid">
+    <!-- ════ MAIN COLUMN ════ -->
+    <div class="dash-col">
 
-<!-- Summary cards -->
-@{
-    var budgetLimit = Model.Budget?.OverallLimit ?? Model.Budget?.TotalLimit ?? 0m;
-    var budgetSpent = Model.Budget?.TotalSpent ?? 0m;
-    var budgetPct = budgetLimit > 0 ? (int)Math.Min(100, (double)(budgetSpent / budgetLimit) * 100) : 0;
-    var budgetOver = budgetLimit > 0 && budgetSpent > budgetLimit;
-}
-<div class="row g-3 mb-4">
-    <div class="col-6 col-lg-3">
-        <div class="card stat-card h-100">
-            <div class="d-flex justify-content-between"><span class="stat-label">Income (30d)</span><i class="bi bi-arrow-down-left stat-icon text-success"></i></div>
-            <div class="stat-value text-success">@Model.TotalIncome.ToString("C0")</div>
+        <!-- KPI cards -->
+        <div class="row row-cols-2 row-cols-xl-4 g-3">
+            <div class="col"><div class="card kpi h-100">
+                <div class="d-flex justify-content-between align-items-start">
+                    <span class="chip-ico"><i class="bi bi-arrow-down-left"></i></span>
+                    <span class="delta @(Model.IncomeDeltaPct >= 0 ? "delta-up" : "delta-down")"><i class="bi @(Model.IncomeDeltaPct >= 0 ? "bi-arrow-up-right" : "bi-arrow-down-right")"></i> @Math.Abs(Model.IncomeDeltaPct).ToString("0.0")%</span>
+                </div>
+                <div class="val">@Money(Model.TotalIncome)</div>
+                <div class="lbl">Income</div>
+            </div></div>
+            <div class="col"><div class="card kpi h-100">
+                <div class="d-flex justify-content-between align-items-start">
+                    <span class="chip-ico"><i class="bi bi-arrow-up-right"></i></span>
+                    <span class="delta @(Model.SpendDeltaPct <= 0 ? "delta-up" : "delta-down")"><i class="bi @(Model.SpendDeltaPct <= 0 ? "bi-arrow-down-right" : "bi-arrow-up-right")"></i> @Math.Abs(Model.SpendDeltaPct).ToString("0.0")%</span>
+                </div>
+                <div class="val">@Money(Model.TotalSpend)</div>
+                <div class="lbl">Spent</div>
+            </div></div>
+            <div class="col"><div class="card kpi h-100">
+                <div class="d-flex justify-content-between align-items-start">
+                    <span class="chip-ico"><i class="bi bi-graph-up-arrow"></i></span>
+                    <span class="delta @(Model.NetDeltaPct >= 0 ? "delta-up" : "delta-down")"><i class="bi @(Model.NetDeltaPct >= 0 ? "bi-arrow-up-right" : "bi-arrow-down-right")"></i> @Math.Abs(Model.NetDeltaPct).ToString("0.0")%</span>
+                </div>
+                <div class="val">@Money(Model.Net)</div>
+                <div class="lbl">Net</div>
+            </div></div>
+            <div class="col"><div class="card kpi h-100">
+                <div class="d-flex justify-content-between align-items-start">
+                    <span class="chip-ico"><i class="bi bi-pie-chart-fill"></i></span>
+                    <span class="delta @(bpct >= 90 ? "delta-down" : "delta-up")">@bpct%</span>
+                </div>
+                <div class="val">@bpct%</div>
+                <div class="lbl">Budget used · @Money(bspent) of @Money(blimit)</div>
+                <div class="progress mt-2"><div class="progress-bar @(bpct >= 90 ? "bg-danger" : "bg-primary")" style="width:@bpct%"></div></div>
+            </div></div>
         </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card stat-card h-100">
-            <div class="d-flex justify-content-between"><span class="stat-label">Spent (30d)</span><i class="bi bi-arrow-up-right stat-icon text-primary"></i></div>
-            <div class="stat-value">@Model.TotalSpend.ToString("C0")</div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card stat-card h-100">
-            <div class="d-flex justify-content-between"><span class="stat-label">Net (30d)</span><i class="bi bi-graph-up-arrow stat-icon text-info"></i></div>
-            <div class="stat-value @(Model.Net < 0 ? "text-danger" : "text-success")">@Model.Net.ToString("C0")</div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <a class="text-decoration-none" href="@Url.Action("Index","Budgets")">
-        <div class="card stat-card h-100">
-            <div class="d-flex justify-content-between"><span class="stat-label">Budget used</span><i class="bi bi-wallet2 stat-icon text-warning"></i></div>
-            @if (budgetLimit > 0)
-            {
-                <div class="stat-value @(budgetOver ? "text-danger" : "")">@budgetPct%</div>
-                <div class="progress mt-1"><div class="progress-bar @(budgetOver ? "bg-danger" : "bg-warning")" style="width:@budgetPct%"></div></div>
-            }
-            else
-            {
-                <div class="stat-value fs-5 text-muted">Set a budget</div>
-            }
-        </div>
-        </a>
-    </div>
-</div>
 
-<!-- Alerts banner -->
-@if (Model.Alerts.Any())
-{
-    <div class="card mb-4 border-warning"><div class="card-body py-2">
-        <div class="d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-bell-fill text-warning"></i> <strong>@Model.Alerts.Count</strong> notification@(Model.Alerts.Count == 1 ? "" : "s") need attention</span>
-            <a class="btn btn-sm btn-outline-warning" href="@Url.Action("Index","Notifications")">View</a>
-        </div>
-        <ul class="mb-0 mt-1 small">
-            @foreach (var a in Model.Alerts.Take(3)) { <li>@a.Message</li> }
-        </ul>
-    </div></div>
-}
-
-<!-- Planning at a glance -->
-<div class="row g-3 mb-4">
-    <div class="col-md-4"><div class="card h-100"><div class="card-body">
-        <h6 class="card-title"><i class="bi bi-piggy-bank text-primary"></i> Saved</h6>
-        <div class="stat-value">@Model.TotalSaved.ToString("C0")</div>
-        <a class="small" href="@Url.Action("Index","SavingsGoals")">Manage goals →</a>
-    </div></div></div>
-    <div class="col-md-4"><div class="card h-100"><div class="card-body">
-        <h6 class="card-title"><i class="bi bi-credit-card-2-front text-danger"></i> Debt outstanding</h6>
-        <div class="stat-value @(Model.TotalDebt > 0 ? "text-danger" : "")">@Model.TotalDebt.ToString("C0")</div>
-        <a class="small" href="@Url.Action("Index","Debts")">Manage debt →</a>
-    </div></div></div>
-    <div class="col-md-4"><div class="card h-100"><div class="card-body">
-        <h6 class="card-title"><i class="bi bi-receipt text-warning"></i> Upcoming bills</h6>
-        @if (Model.UpcomingBills.Any())
-        {
-            <ul class="list-unstyled mb-1 small">
-                @foreach (var b in Model.UpcomingBills)
-                {
-                    <li class="d-flex justify-content-between"><span>@b.Name</span><span class="text-muted">@b.NextDueDate.ToString("dd MMM") · @b.Amount.ToString("C0")</span></li>
-                }
-            </ul>
-        }
-        else { <p class="text-muted small mb-1">No bills tracked.</p> }
-        <a class="small" href="@Url.Action("Index","Bills")">Manage bills →</a>
-    </div></div></div>
-</div>
-
-<!-- Triggers -->
-@if (Model.TopTriggers.Any())
-{
-    <div class="row g-3 mb-4">
-        @foreach (var t in Model.TopTriggers)
-        {
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <i class="bi bi-lightning-charge-fill text-warning"></i>
-                            <h6 class="card-title m-0">@t.Label</h6>
-                        </div>
-                        <p class="card-text text-muted small mb-2">@t.Insight</p>
-                        <div class="progress" role="progressbar" aria-valuenow="@((int)(t.ConfidenceScore*100))" aria-valuemin="0" aria-valuemax="100">
-                            <div class="progress-bar bg-warning" style="width:@((int)(t.ConfidenceScore*100))%"></div>
-                        </div>
-                        <small class="text-muted">@t.ConfidenceScore.ToString("P0") confidence · @t.SampleSize transactions</small>
+        <!-- Savings / Debt / Bills -->
+        <div class="row g-3">
+            <div class="col-md-4"><div class="card h-100"><div class="card-body">
+                <h6 class="card-title"><i class="bi bi-bullseye"></i> Savings Goal</h6>
+                <div class="d-flex align-items-center gap-3 mt-2">
+                    <div class="ring" style="--p:@fgPct"><span>@fgPct%</span></div>
+                    <div>
+                        <div class="fs-5 fw-bold">@Money(fgSaved) <span class="text-muted fs-6 fw-normal">/ @Money(fgTarget)</span></div>
+                        <div class="text-muted small">@(Model.FeaturedGoal?.Name ?? "No goal yet")</div>
                     </div>
                 </div>
-            </div>
-        }
-    </div>
-}
+                <a class="btn btn-link p-0 mt-3 small" href="@Url.Action("Index","SavingsGoals")">Manage goals →</a>
+            </div></div></div>
 
-<!-- Charts -->
-<div class="row g-3 mb-4">
-    <div class="col-lg-5">
-        <div class="card h-100"><div class="card-body">
-            <h6 class="card-title"><i class="bi bi-pie-chart"></i> Spending by category (30d)</h6>
-            @if (Model.CategoryTotals.Any())
-            {
-                <canvas id="categoryChart" height="220"></canvas>
-            }
-            else { <p class="text-muted small mb-0">No category data yet.</p> }
+            <div class="col-md-4"><div class="card h-100"><div class="card-body">
+                <h6 class="card-title"><i class="bi bi-credit-card-2-front text-danger"></i> Debt Outstanding</h6>
+                <div class="mt-2" style="font-size:1.8rem;font-weight:800;color:#ff8b8b;">@Money(Model.TotalDebt)</div>
+                <div class="text-muted small">@Model.DebtCount account@(Model.DebtCount == 1 ? "" : "s")</div>
+                <a class="btn btn-link p-0 mt-3 small" href="@Url.Action("Index","Debts")">Manage debt →</a>
+            </div></div></div>
+
+            <div class="col-md-4"><div class="card h-100"><div class="card-body">
+                <h6 class="card-title"><i class="bi bi-calendar-event"></i> Upcoming Bills</h6>
+                @if (Model.UpcomingBills.Any())
+                {
+                    <ul class="list-unstyled small mb-2 mt-2">
+                        @foreach (var b in Model.UpcomingBills)
+                        {
+                            <li class="d-flex justify-content-between py-1">
+                                <span><span class="d-inline-block rounded-circle me-2" style="width:.45rem;height:.45rem;background:var(--g);"></span>@b.Name</span>
+                                <span class="text-muted">@b.NextDueDate.ToString("dd MMM") · @Money(b.Amount)</span>
+                            </li>
+                        }
+                    </ul>
+                }
+                else { <p class="text-muted small mt-2">No bills tracked.</p> }
+                <a class="btn btn-link p-0 small" href="@Url.Action("Index","Bills")">View all bills →</a>
+            </div></div></div>
+        </div>
+
+        <!-- Charts -->
+        <div class="row g-3">
+            <div class="col-12 col-xxl-7"><div class="card h-100"><div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="card-title m-0"><i class="bi bi-graph-up"></i> Spending Over Time</h6>
+                    <span class="top-chip py-1 px-2" style="font-size:.78rem;">This month</span>
+                </div>
+                <canvas id="spendChart" height="160"></canvas>
+            </div></div></div>
+
+            <div class="col-12 col-xxl-5"><div class="card h-100"><div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="card-title m-0"><i class="bi bi-pie-chart"></i> Spending by Category</h6>
+                    <span class="top-chip py-1 px-2" style="font-size:.78rem;">This month</span>
+                </div>
+                @if (Model.CategoryTotals.Any())
+                {
+                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                        <div style="position:relative;width:160px;height:160px;flex:0 0 auto;">
+                            <canvas id="catChart"></canvas>
+                            <div style="position:absolute;inset:0;display:grid;place-items:center;text-align:center;pointer-events:none;">
+                                <div><div class="text-muted small">Total</div><div class="fw-bold">@Money(catTotal)</div></div>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1" style="min-width:170px;">
+                            @{ var ci = 0; }
+                            @foreach (var c in Model.CategoryTotals.Take(8))
+                            {
+                                var col = catColors[ci]; ci++;
+                                var pc = catTotal > 0 ? (int)Math.Round((double)(c.Total / catTotal) * 100) : 0;
+                                <div class="d-flex align-items-center justify-content-between py-1" style="font-size:.83rem;">
+                                    <span><span class="d-inline-block rounded-circle me-2" style="width:.6rem;height:.6rem;background:@col;"></span>@c.Category</span>
+                                    <span class="text-muted">@pc% · @Money(c.Total)</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+                else { <p class="text-muted small mb-0">No spending yet this month.</p> }
+            </div></div></div>
+        </div>
+
+        <!-- Recent transactions -->
+        <div class="card"><div class="card-body p-0">
+            <div class="d-flex justify-content-between align-items-center p-3 pb-2">
+                <h6 class="card-title m-0"><i class="bi bi-clock-history"></i> Recent Transactions</h6>
+                <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("Index","Transactions")">View all</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Date</th><th>Merchant</th><th>Category</th><th>Description</th><th class="text-end">Amount</th><th>Mood</th><th>Status</th></tr></thead>
+                    <tbody>
+                    @foreach (var t in Model.RecentTransactions)
+                    {
+                        <tr>
+                            <td class="small text-nowrap">@t.TransactionDate.ToString("dd MMM yyyy")</td>
+                            <td>@(string.IsNullOrEmpty(t.Merchant) ? "—" : t.Merchant)</td>
+                            <td><span class="pill @catPill(t.Category)">@t.Category</span></td>
+                            <td class="text-muted">@t.Description</td>
+                            <td class="text-end fw-semibold @(t.Type == TransactionType.Income ? "text-success" : "")">@(t.Type == TransactionType.Income ? "+" : "")@t.Amount.ToString("C")</td>
+                            <td>@if (t.EmotionalState != null) { <span class="d-inline-block rounded-circle bg-@(t.EmotionalState.MoodCssClass())" style="width:.8rem;height:.8rem;"></span> } else { <span class="text-muted">—</span> }</td>
+                            <td>@if (t.EmotionalState != null) { <span class="pill @moodPill(t.EmotionalState.MoodCssClass())">@t.EmotionalState.Humanize()</span> } else { <span class="text-muted">—</span> }</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
         </div></div>
     </div>
-    <div class="col-lg-7">
-        <div class="card h-100"><div class="card-body">
-            <h6 class="card-title"><i class="bi bi-calendar-week"></i> Spending by day of week</h6>
-            @if (Model.DayOfWeekPatterns.Any())
+
+    <!-- ════ RIGHT RAIL ════ -->
+    <div class="dash-col">
+
+        <!-- Alerts -->
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="card-title m-0"><i class="bi bi-bell"></i> Alerts</h6>
+                <span class="pill pill-red">@Model.Alerts.Count</span>
+            </div>
+            @if (Model.Alerts.Any())
             {
-                <canvas id="dayChart" height="220"></canvas>
+                <ul class="list-unstyled small mb-2">
+                    @foreach (var a in Model.Alerts.Take(5))
+                    {
+                        <li class="d-flex gap-2 py-1">
+                            <span class="d-inline-block rounded-circle bg-@(a.Severity == "info" ? "info" : a.Severity) mt-1" style="width:.5rem;height:.5rem;flex:0 0 auto;"></span>
+                            <span>@a.Message</span>
+                        </li>
+                    }
+                </ul>
+                <a class="btn btn-link p-0 small" href="@Url.Action("Index","Notifications")">View all alerts →</a>
             }
-            else { <p class="text-muted small mb-0">No day-of-week data yet.</p> }
+            else { <p class="text-muted small mb-0">You're all caught up.</p> }
+        </div></div>
+
+        <!-- Spending mood -->
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-emoji-smile"></i> Spending Mood</h6>
+            @if (Model.MoodSpending.Any())
+            {
+                <div class="d-grid gap-2" style="grid-template-columns:1fr 1fr;">
+                    @foreach (var m in Model.MoodSpending)
+                    {
+                        var pc = moodTotal > 0 ? (int)Math.Round((double)(m.Total / moodTotal) * 100) : 0;
+                        <div class="mood-chip">
+                            <span class="mi bg-@(m.Mood.MoodCssClass()) text-white"><i class="bi bi-emoji-smile"></i></span>
+                            <span>@m.Mood?.Humanize()</span><span class="pct">@pc%</span>
+                        </div>
+                    }
+                </div>
+            }
+            else { <p class="text-muted small mb-0">No mood data yet.</p> }
+        </div></div>
+
+        <!-- Budget progress -->
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <h6 class="card-title m-0"><i class="bi bi-wallet2"></i> Budget Progress</h6>
+                <span class="top-chip py-1 px-2" style="font-size:.78rem;">This month</span>
+            </div>
+            <div class="d-flex align-items-baseline gap-2"><span style="font-size:2.1rem;font-weight:800;color:var(--g);">@bpct%</span><span class="text-muted small">of @Money(blimit) used</span></div>
+            <div class="progress my-2"><div class="progress-bar @(bpct >= 90 ? "bg-danger" : "bg-primary")" style="width:@bpct%"></div></div>
+            <div class="d-flex justify-content-between small mb-3">
+                <div><div class="text-muted">Remaining</div><div class="fw-semibold">@Money(remaining)</div></div>
+                <div class="text-end"><div class="text-muted">Daily avg. left</div><div class="fw-semibold">@Money(dailyLeft)</div></div>
+            </div>
+            <div class="sparks">
+                @foreach (var p in Model.DailySpending)
+                {
+                    var h = (int)Math.Round((double)(p.Amount / maxDaily) * 100);
+                    <i style="height:@Math.Max(6, h)%"></i>
+                }
+            </div>
+        </div></div>
+
+        <!-- Smart insight -->
+        <div class="card"><div class="card-body text-center">
+            <h6 class="card-title text-start"><i class="bi bi-stars"></i> Smart Insight</h6>
+            <div class="my-3" style="font-size:2.1rem;color:@(Model.InsightPositive ? "var(--g)" : "#f59e0b");filter:drop-shadow(0 0 16px @(Model.InsightPositive ? "var(--g-glow)" : "rgba(245,158,11,.4)"));">
+                <i class="bi @(Model.InsightPositive ? "bi-hand-thumbs-up-fill" : "bi-exclamation-circle-fill")"></i>
+            </div>
+            <p class="mb-2 small">@Model.SmartInsight</p>
+            <a class="btn btn-outline-primary btn-sm" href="@Url.Action("Index","Reports")">View Details</a>
         </div></div>
     </div>
 </div>
-
-<!-- Mood -->
-@if (Model.MoodSpending.Any())
-{
-    <div class="card mb-4"><div class="card-body">
-        <h6 class="card-title"><i class="bi bi-emoji-smile"></i> Spending by mood (30d)</h6>
-        <div class="d-flex flex-wrap gap-2">
-            @foreach (var m in Model.MoodSpending)
-            {
-                <span class="badge rounded-pill bg-@(m.Mood.MoodCssClass()) fs-6">
-                    @m.Mood?.Humanize(): @m.Total.ToString("C0") (@m.Count)
-                </span>
-            }
-        </div>
-    </div></div>
-}
-
-<!-- Recent transactions -->
-<div class="card"><div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <h6 class="card-title m-0"><i class="bi bi-clock-history"></i> Recent transactions</h6>
-        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index","Transactions")">View all</a>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-sm align-middle mb-0">
-            <thead><tr><th scope="col">Date</th><th scope="col">Amount</th><th scope="col">Category</th><th scope="col">Description</th><th scope="col">Mood</th></tr></thead>
-            <tbody>
-            @foreach (var tx in Model.RecentTransactions)
-            {
-                <tr>
-                    <td>@tx.TransactionDate.ToString("dd MMM yyyy")</td>
-                    <td class="fw-semibold">@tx.Amount.ToString("C")</td>
-                    <td><span class="badge bg-light text-dark border">@tx.Category</span></td>
-                    <td>@tx.Description</td>
-                    <td>@if (tx.EmotionalState != null) {<span class="badge rounded-pill bg-@(tx.EmotionalState.MoodCssClass())">@tx.EmotionalState.Humanize()</span>}</td>
-                </tr>
-            }
-            </tbody>
-        </table>
-    </div>
-</div></div>
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
     <script>
-        const palette = ['#4f46e5','#06b6d4','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec4899','#14b8a6'];
+        Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+        new Chart(document.getElementById('spendChart'), {
+            type: 'line',
+            data: {
+                labels: @Html.Raw(Json.Serialize(Model.DailySpending.Select(p => p.Day))),
+                datasets: [{
+                    data: @Html.Raw(Json.Serialize(Model.DailySpending.Select(p => p.Amount))),
+                    borderColor: '#25e07e', borderWidth: 2, tension: .4, fill: true, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: '#25e07e',
+                    backgroundColor: function (ctx) { var c = ctx.chart.ctx; var g = c.createLinearGradient(0, 0, 0, 180); g.addColorStop(0, 'rgba(37,224,126,.35)'); g.addColorStop(1, 'rgba(37,224,126,0)'); return g; }
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0d1219', borderColor: 'rgba(37,224,126,.4)', borderWidth: 1, padding: 10 } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#5d6878', maxTicksLimit: 8 } },
+                    y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#5d6878' } }
+                }
+            }
+        });
         @if (Model.CategoryTotals.Any())
         {
             <text>
-            new Chart(document.getElementById('categoryChart'), {
+            new Chart(document.getElementById('catChart'), {
                 type: 'doughnut',
-                data: {
-                    labels: @Html.Raw(Json.Serialize(Model.CategoryTotals.Select(c => c.Category))),
-                    datasets: [{ data: @Html.Raw(Json.Serialize(Model.CategoryTotals.Select(c => c.Total))), backgroundColor: palette }]
-                },
-                options: { plugins: { legend: { position: 'right' } } }
-            });
-            </text>
-        }
-        @if (Model.DayOfWeekPatterns.Any())
-        {
-            <text>
-            new Chart(document.getElementById('dayChart'), {
-                type: 'bar',
-                data: {
-                    labels: @Html.Raw(Json.Serialize(Model.DayOfWeekPatterns.Select(d => d.PeriodLabel.Trim()))),
-                    datasets: [{ label: 'Total spend', data: @Html.Raw(Json.Serialize(Model.DayOfWeekPatterns.Select(d => d.TotalAmount))), backgroundColor: '#4f46e5', borderRadius: 6 }]
-                },
-                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                data: { labels: @Html.Raw(Json.Serialize(Model.CategoryTotals.Select(c => c.Category))),
+                        datasets: [{ data: @Html.Raw(Json.Serialize(Model.CategoryTotals.Select(c => c.Total))), backgroundColor: @Html.Raw(Json.Serialize(catColors)), borderWidth: 0, hoverOffset: 6 }] },
+                options: { cutout: '70%', plugins: { legend: { display: false } } }
             });
             </text>
         }

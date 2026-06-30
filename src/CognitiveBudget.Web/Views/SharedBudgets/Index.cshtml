@@ -1,53 +1,94 @@
 @model SharedBudgetsIndexViewModel
-@{ ViewData["Title"] = "Shared budgets"; }
+@{
+    ViewData["Title"] = "Shared budgets";
+    string Money(decimal d) => d.ToString("C0");
+    var palette = new[] { "#25e07e", "#8b5cf6", "#f59e0b", "#3b82f6", "#06b6d4", "#ec4899" };
+    Func<string, (string cat, string icon)> cat = c => (c ?? "").ToLower() switch
+    {
+        var s when s.Contains("holiday") || s.Contains("travel") || s.Contains("trip") => ("Holiday", "bi-airplane"),
+        var s when s.Contains("home") || s.Contains("house") || s.Contains("rent") => ("Home", "bi-house"),
+        var s when s.Contains("wedding") => ("Goal", "bi-heart"),
+        var s when s.Contains("grocer") || s.Contains("food") => ("Groceries", "bi-cart"),
+        _ => ("Shared", "bi-people")
+    };
+}
 
-<div class="page-header">
-    <h2><i class="bi bi-people text-primary"></i> Shared budgets</h2>
-    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> New shared budget</a>
+<div class="hero">
+    <div class="page-header">
+        <div><h2>Shared Budgets</h2><p class="text-muted m-0">Collaborate with others and achieve goals together.</p></div>
+        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Create Shared Budget</a>
+    </div>
 </div>
 
-@if (Model.Invites.Any())
-{
-    <div class="card mb-4 border-warning"><div class="card-body">
-        <h6 class="card-title"><i class="bi bi-envelope-paper text-warning"></i> Pending invites</h6>
+@if (TempData["Success"] != null) { <div class="alert alert-success mt-3">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert alert-danger mt-3">@TempData["Error"]</div> }
+
+<div class="btn-group btn-group-sm view-toggle my-3" role="group" id="sbTabs">
+    <button type="button" class="btn btn-outline-secondary active" data-filter="mine">My Shared Budgets</button>
+    <button type="button" class="btn btn-outline-secondary" data-filter="invites">Invitations @(Model.Invites.Any() ? $"({Model.Invites.Count})" : "")</button>
+</div>
+
+<div data-pane="mine">
+    @if (!Model.Groups.Any())
+    {
+        <div class="card"><div class="empty-state"><i class="bi bi-people"></i><h5>No shared budgets yet</h5><p>Create a shared budget to split expenses and reach goals with others.</p>
+            <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Create your first one</a></div></div>
+    }
+    else
+    {
+        var gi = 0;
+        @foreach (var g in Model.Groups)
+        {
+            var col = palette[gi % palette.Length]; gi++;
+            var spent = g.Expenses.Sum(e => e.Amount);
+            var members = g.Members.Count(m => m.Status == InviteStatus.Active);
+            var topCat = g.Expenses.GroupBy(e => e.Category).OrderByDescending(x => x.Count()).Select(x => x.Key).FirstOrDefault() ?? g.Name;
+            var cv = cat(topCat + " " + g.Name);
+            <div class="card mb-3"><div class="card-body d-flex align-items-center gap-3 flex-wrap">
+                <span style="width:3.2rem;height:3.2rem;border-radius:1rem;display:grid;place-items:center;flex:0 0 auto;color:@col;background:color-mix(in srgb,@col 16%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,@col 35%,transparent);font-size:1.4rem;"><i class="bi @cv.icon"></i></span>
+                <div class="flex-grow-1 min-w-0" style="min-width:180px;">
+                    <div class="fw-bold">@g.Name</div>
+                    <div class="small" style="color:@col;"><i class="bi @cv.icon me-1"></i>@cv.cat</div>
+                    <div class="text-muted small mt-1"><i class="bi bi-people"></i> @members member@(members == 1 ? "" : "s") · @g.Expenses.Count expense@(g.Expenses.Count == 1 ? "" : "s")</div>
+                </div>
+                <div class="text-end"><div class="text-muted small">Total spent</div><div class="fw-bold" style="font-size:1.3rem;">@Money(spent)</div></div>
+                <a class="btn btn-outline-secondary" href="@Url.Action("Details", new { id = g.Id })"><i class="bi bi-arrow-right"></i> Open</a>
+            </div></div>
+        }
+    }
+</div>
+
+<div data-pane="invites" style="display:none;">
+    @if (!Model.Invites.Any())
+    {
+        <div class="card"><div class="empty-state"><i class="bi bi-envelope-open"></i><h5>No pending invitations</h5><p>When someone invites you to a shared budget, it'll show up here.</p></div></div>
+    }
+    else
+    {
         @foreach (var inv in Model.Invites)
         {
-            <div class="d-flex justify-content-between align-items-center border-top py-2">
-                <span>You've been invited to <strong>@inv.SharedBudget.Name</strong> as <span class="badge bg-light text-dark border">@inv.Role</span></span>
-                <span class="d-flex gap-1">
-                    <form asp-action="AcceptInvite" method="post"><input type="hidden" name="memberId" value="@inv.Id" />
-                        <button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Accept</button></form>
-                    <form asp-action="DeclineInvite" method="post"><input type="hidden" name="memberId" value="@inv.Id" />
-                        <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i> Decline</button></form>
-                </span>
-            </div>
+            <div class="card mb-3"><div class="card-body d-flex align-items-center gap-3 flex-wrap">
+                <span style="width:3rem;height:3rem;border-radius:1rem;display:grid;place-items:center;flex:0 0 auto;color:var(--g);background:var(--g-soft);font-size:1.3rem;"><i class="bi bi-people"></i></span>
+                <div class="flex-grow-1 min-w-0">
+                    <div class="fw-bold">@(inv.SharedBudget?.Name ?? "Shared budget")</div>
+                    <div class="text-muted small">Invited as @(((Enum)inv.Role).Humanize())</div>
+                </div>
+                <form asp-action="AcceptInvite" method="post" class="d-inline"><input type="hidden" name="memberId" value="@inv.Id" /><button class="btn btn-primary"><i class="bi bi-check-lg"></i> Accept</button></form>
+                <form asp-action="DeclineInvite" method="post" class="d-inline"><input type="hidden" name="memberId" value="@inv.Id" /><button class="btn btn-outline-secondary">Decline</button></form>
+            </div></div>
         }
-    </div></div>
-}
-
-@if (!Model.Groups.Any())
-{
-    <div class="card"><div class="empty-state">
-        <i class="bi bi-people"></i>
-        <h5>No shared budgets yet</h5>
-        <p>Create a household or group budget and invite people to split expenses and settle up.</p>
-        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Create one</a>
-    </div></div>
-}
-else
-{
-    <div class="row g-3">
-    @foreach (var g in Model.Groups)
-    {
-        var memberCount = g.Members.Count(m => m.Status == InviteStatus.Active);
-        <div class="col-md-4">
-            <a class="text-decoration-none" href="@Url.Action("Details", new { id = g.Id })">
-                <div class="card h-100"><div class="card-body">
-                    <h6 class="card-title"><i class="bi bi-house-heart text-primary"></i> @g.Name</h6>
-                    <p class="text-muted small mb-0">@memberCount member@(memberCount == 1 ? "" : "s")</p>
-                </div></div>
-            </a>
-        </div>
     }
-    </div>
+</div>
+
+@section Scripts {
+    <script>
+        var sb = document.getElementById('sbTabs');
+        if (sb) sb.addEventListener('click', function (e) {
+            var b = e.target.closest('[data-filter]'); if (!b) return;
+            sb.querySelectorAll('.btn').forEach(function (x) { x.classList.remove('active'); });
+            b.classList.add('active');
+            var f = b.getAttribute('data-filter');
+            document.querySelectorAll('[data-pane]').forEach(function (p) { p.style.display = p.getAttribute('data-pane') === f ? '' : 'none'; });
+        });
+    </script>
 }

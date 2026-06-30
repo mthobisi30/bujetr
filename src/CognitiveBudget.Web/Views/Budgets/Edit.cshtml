@@ -5,52 +5,60 @@
     var sym = System.Globalization.NumberFormatInfo.CurrentInfo.CurrencySymbol;
 }
 
-<div class="page-header">
-    <h2><i class="bi bi-wallet2 text-primary"></i> Budget — @monthStart.ToString("MMMM yyyy")</h2>
-    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index", new { year = Model.Year, month = Model.Month })"><i class="bi bi-arrow-left"></i> Back</a>
-</div>
+<div class="form-card wide">
+  <div class="card"><div class="card-body p-4 p-md-5">
+    <div class="form-head">
+      <span class="fh-ico"><i class="bi bi-wallet2"></i></span>
+      <div>
+        <h3>Budget — @monthStart.ToString("MMMM yyyy")</h3>
+        <p class="text-muted small mb-0">Set an overall limit and per-category monthly limits.</p>
+      </div>
+    </div>
+    <form asp-action="Edit" method="post">
+      <input type="hidden" asp-for="Year" />
+      <input type="hidden" asp-for="Month" />
 
-<div class="card"><div class="card-body">
-<form asp-action="Edit" method="post">
-    <input type="hidden" asp-for="Year" />
-    <input type="hidden" asp-for="Month" />
-
-    <div class="mb-3 col-md-4">
-        <label asp-for="OverallLimit" class="form-label">Overall monthly limit <span class="text-muted">(optional)</span></label>
-        <div class="input-group">
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <label asp-for="OverallLimit" class="form-label">Overall monthly limit <span class="text-muted">(optional)</span></label>
+          <div class="input-group">
             <span class="input-group-text">@sym</span>
             <input asp-for="OverallLimit" class="form-control" type="number" step="0.01" min="0" />
+          </div>
         </div>
-    </div>
+      </div>
 
-    <h6 class="mt-3">Category limits</h6>
-    <p class="text-muted small">Leave a limit blank to skip that category. Your existing spending categories are pre-filled.</p>
+      <h6 class="mt-4">Category limits</h6>
+      <p class="text-muted small">Leave a limit blank to skip that category. Your existing spending categories are pre-filled.</p>
 
-    <table class="table align-middle" id="catTable">
-        <thead><tr><th scope="col">Category</th><th scope="col" style="width:220px;">Monthly limit</th></tr></thead>
-        <tbody>
-        @for (var i = 0; i < Model.Categories.Count; i++)
-        {
-            <tr>
-                <td><input asp-for="Categories[i].Category" class="form-control" placeholder="e.g. Groceries" /></td>
-                <td>
-                    <div class="input-group">
-                        <span class="input-group-text">@sym</span>
-                        <input asp-for="Categories[i].Limit" class="form-control" type="number" step="0.01" min="0" />
-                    </div>
-                </td>
-            </tr>
-        }
-        </tbody>
-    </table>
-    <button type="button" class="btn btn-sm btn-outline-secondary" id="addRow"><i class="bi bi-plus-lg"></i> Add category</button>
+      <div class="table-responsive">
+        <table class="table align-middle" id="catTable">
+          <thead><tr><th scope="col">Category</th><th scope="col" style="width:240px;">Monthly limit</th></tr></thead>
+          <tbody>
+          @for (var i = 0; i < Model.Categories.Count; i++)
+          {
+              <tr>
+                  <td><input asp-for="Categories[i].Category" class="form-control" placeholder="e.g. Groceries" /></td>
+                  <td>
+                      <div class="input-group">
+                          <span class="input-group-text">@sym</span>
+                          <input asp-for="Categories[i].Limit" class="form-control" type="number" step="0.01" min="0" />
+                      </div>
+                  </td>
+              </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-outline-secondary" id="addRow"><i class="bi bi-plus-lg"></i> Add category</button>
 
-    <div class="mt-4">
+      <div class="form-actions">
         <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save budget</button>
-        <a class="btn btn-link" href="@Url.Action("Index", new { year = Model.Year, month = Model.Month })">Cancel</a>
-    </div>
-</form>
-</div></div>
+        <a class="btn btn-outline-secondary" href="@Url.Action("Index", new { year = Model.Year, month = Model.Month })">Cancel</a>
+      </div>
+    </form>
+  </div></div>
+</div>
 
 @section Scripts {
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}

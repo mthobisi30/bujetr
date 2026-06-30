@@ -1,0 +1,7 @@
+@model string
+<div class="planning-tabs">
+    <a class="@(Model == "overview" ? "active" : "")" href="@Url.Action("Index", "Planning")"><i class="bi bi-grid-1x2"></i> Overview</a>
+    <a class="@(Model == "goals" ? "active" : "")" href="@Url.Action("Index", "SavingsGoals")"><i class="bi bi-bullseye"></i> Savings Goals</a>
+    <a class="@(Model == "bills" ? "active" : "")" href="@Url.Action("Index", "Bills")"><i class="bi bi-receipt"></i> Bills</a>
+    <a class="@(Model == "debts" ? "active" : "")" href="@Url.Action("Index", "Debts")"><i class="bi bi-credit-card-2-front"></i> Debts</a>
+</div>

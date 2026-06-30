@@ -1,59 +1,154 @@
-@model IEnumerable<SavingsGoal>
+@model GoalsPageViewModel
 @{
-    ViewData["Title"] = "Savings goals";
+    ViewData["Title"] = "Savings Goals";
     string Money(decimal d) => d.ToString("C0");
+    Func<string, string> goalIcon = n => (n ?? "").ToLower() switch
+    {
+        var s when s.Contains("emergency") => "bi-shield-check",
+        var s when s.Contains("holiday") || s.Contains("travel") || s.Contains("vacation") => "bi-airplane",
+        var s when s.Contains("laptop") || s.Contains("tech") || s.Contains("phone") => "bi-laptop",
+        var s when s.Contains("car") => "bi-car-front",
+        var s when s.Contains("home") || s.Contains("house") => "bi-house",
+        var s when s.Contains("wedding") => "bi-heart",
+        _ => "bi-bullseye"
+    };
 }
 
-<div class="page-header">
-    <h2><i class="bi bi-piggy-bank text-primary"></i> Savings goals</h2>
-    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> New goal</a>
+<div class="hero">
+    <div class="page-header">
+        <div><h2>Planning</h2><p class="text-muted m-0">Set goals, stay ahead of bills, and eliminate debt with a plan that works.</p></div>
+        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Create Goal</a>
+    </div>
+    <partial name="_PlanningTabs" model="@("goals")" />
 </div>
 
-@if (!Model.Any())
-{
-    <div class="card"><div class="empty-state">
-        <i class="bi bi-piggy-bank"></i>
-        <h5>No savings goals yet</h5>
-        <p>Set a target — a holiday, an emergency fund, a deposit — and track your progress.</p>
-        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Create your first goal</a>
-    </div></div>
-}
-else
-{
-    <div class="row g-3">
-    @foreach (var g in Model)
-    {
-        var saved = g.Contributions.Sum(c => c.Amount);
-        var pct = g.TargetAmount > 0 ? (int)Math.Min(100, (double)(saved / g.TargetAmount) * 100) : 0;
-        var prioClass = g.Priority == SavingsPriority.High ? "danger" : g.Priority == SavingsPriority.Medium ? "warning" : "secondary";
-        <div class="col-md-6">
-            <div class="card h-100 @(g.IsCompleted ? "border-success" : "")"><div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <h6 class="card-title mb-1"><i class="bi bi-bullseye text-primary"></i> @g.Name</h6>
-                    <span class="badge bg-@prioClass">@g.Priority</span>
-                </div>
-                @if (g.IsCompleted) { <span class="badge bg-success mb-2"><i class="bi bi-check-circle"></i> Completed</span> }
-                <div class="d-flex justify-content-between"><span class="text-muted small">@Money(saved) of @Money(g.TargetAmount)</span><span class="small fw-semibold">@pct%</span></div>
-                <div class="progress my-1" role="progressbar" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar @(g.IsCompleted ? "bg-success" : "bg-primary")" style="width:@pct%"></div>
-                </div>
-                @if (g.Deadline.HasValue) { <div class="small text-muted">Target date: @g.Deadline.Value.ToString("dd MMM yyyy")</div> }
-                @if (!string.IsNullOrWhiteSpace(g.Notes)) { <div class="small text-muted">@g.Notes</div> }
+@if (TempData["Success"] != null) { <div class="alert alert-success mt-3">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert alert-danger mt-3">@TempData["Error"]</div> }
 
-                <form asp-action="AddContribution" method="post" class="row g-1 mt-2">
-                    <input type="hidden" name="id" value="@g.Id" />
-                    <div class="col"><input name="amount" type="number" step="0.01" class="form-control form-control-sm" placeholder="Add / withdraw (-)" /></div>
-                    <div class="col-auto"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-circle"></i> Contribute</button></div>
-                </form>
-                <div class="mt-2 text-end">
-                    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = g.Id })"><i class="bi bi-pencil"></i></a>
-                    <form asp-action="Delete" method="post" class="d-inline">
-                        <input type="hidden" name="id" value="@g.Id" />
-                        <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this goal?');"><i class="bi bi-trash"></i></button>
-                    </form>
-                </div>
-            </div></div>
-        </div>
-    }
+<!-- KPIs -->
+<div class="row row-cols-2 row-cols-xl-4 g-3 my-1">
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Total Goal Target</div><div class="val">@Money(Model.TotalTarget)</div><div class="text-muted small">Across @Model.GoalCount goal@(Model.GoalCount == 1 ? "" : "s")</div></div><span class="chip-ico"><i class="bi bi-bullseye"></i></span></div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Saved So Far</div><div class="val">@Money(Model.TotalSaved)</div><div class="small text-success">@Model.SavedPct% of total target</div></div><span class="chip-ico"><i class="bi bi-wallet2"></i></span></div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Monthly Contribution</div><div class="val">@Money(Model.MonthlyContribution)</div><div class="text-muted small">Across all goals</div></div><span class="chip-ico cyan"><i class="bi bi-graph-up-arrow"></i></span></div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Projected Completion</div><div class="val" style="font-size:1.5rem;">@Model.ProjectedCompletion</div><div class="text-muted small">Based on current pace</div></div><span class="chip-ico violet"><i class="bi bi-calendar-check"></i></span></div>
+    </div></div>
+</div>
+
+<div class="dash-grid">
+    <div class="dash-col">
+        <div class="card"><div class="card-body p-0">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 pb-2">
+                <h6 class="card-title m-0"><i class="bi bi-bullseye"></i> Savings Goals</h6>
+                <form method="get" id="goalSort"><select name="sort" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                    <option value="progress" selected="@(Model.Sort == "progress")">Sort: Progress</option>
+                    <option value="target" selected="@(Model.Sort == "target")">Sort: Target amount</option>
+                    <option value="deadline" selected="@(Model.Sort == "deadline")">Sort: Target date</option>
+                </select></form>
+            </div>
+            @if (!Model.Goals.Any())
+            {
+                <div class="empty-state"><i class="bi bi-bullseye"></i><h5>No savings goals yet</h5><p>Create a goal and start contributing toward it.</p>
+                    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Create your first goal</a></div>
+            }
+            else
+            {
+                <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Goal</th><th>Saved So Far</th><th>Target</th><th>Monthly</th><th style="min-width:150px;">Progress</th><th>Target Date</th><th>Status</th><th class="text-end">Action</th></tr></thead>
+                    <tbody>
+                    @foreach (var r in Model.Goals)
+                    {
+                        <tr>
+                            <td><div class="d-flex align-items-center gap-2">
+                                <span style="width:2.2rem;height:2.2rem;border-radius:.6rem;display:grid;place-items:center;color:@r.Color;background:color-mix(in srgb,@r.Color 16%,transparent);"><i class="bi @goalIcon(r.Goal.Name)"></i></span>
+                                <div><div class="fw-semibold">@r.Goal.Name</div><div class="text-muted" style="font-size:.74rem;">@(string.IsNullOrWhiteSpace(r.Goal.Notes) ? ((Enum)r.Goal.Priority).Humanize() + " priority" : r.Goal.Notes)</div></div>
+                            </div></td>
+                            <td class="fw-semibold" style="color:@r.Color;">@Money(r.Saved)</td>
+                            <td>@Money(r.Goal.TargetAmount)</td>
+                            <td>@(r.Monthly > 0 ? Money(r.Monthly) : "—")</td>
+                            <td><div class="d-flex align-items-center gap-2"><span class="small fw-semibold" style="width:2.4rem;">@r.Pct%</span>
+                                <div class="progress flex-grow-1"><div class="progress-bar" style="width:@r.Pct%;background:@r.Color;"></div></div></div></td>
+                            <td class="small text-nowrap">@(r.Goal.Deadline?.ToString("dd MMM yyyy") ?? "—")</td>
+                            <td><span class="pill @r.StatusCls">@r.Status</span></td>
+                            <td class="text-end text-nowrap">
+                                <button class="btn btn-sm btn-outline-success icon-action" data-bs-toggle="modal" data-bs-target="#c-@r.Goal.Id" title="Add contribution"><i class="bi bi-plus-circle"></i></button>
+                                <a class="btn btn-sm btn-outline-secondary icon-action" href="@Url.Action("Edit", new { id = r.Goal.Id })" title="Edit"><i class="bi bi-pencil"></i></a>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table></div>
+                <a class="d-block text-center my-3 mx-3 py-3 rounded text-decoration-none fw-semibold" href="@Url.Action("Create")" style="border:1px dashed var(--line);color:var(--g);"><i class="bi bi-plus-lg"></i> Add New Goal</a>
+            }
+        </div></div>
     </div>
+
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-graph-up"></i> Contribution Trend</h6>
+            <canvas id="trendChart" height="170"></canvas>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="card-title m-0"><i class="bi bi-flag"></i> Upcoming Milestones</h6><span class="pill pill-green">@Model.Milestones.Count</span></div>
+            @if (Model.Milestones.Any())
+            {
+                @foreach (var r in Model.Milestones)
+                {
+                    <div class="d-flex align-items-center gap-3 py-2">
+                        <span style="width:2.1rem;height:2.1rem;border-radius:.6rem;display:grid;place-items:center;color:@r.Color;background:color-mix(in srgb,@r.Color 16%,transparent);"><i class="bi @goalIcon(r.Goal.Name)"></i></span>
+                        <div class="flex-grow-1 min-w-0"><div class="small fw-semibold text-truncate">@r.Goal.Name</div><div class="text-muted" style="font-size:.74rem;">@r.Pct% complete</div></div>
+                        <div class="text-end small"><div class="fw-semibold">@Money(r.Saved)</div><div class="text-muted" style="font-size:.72rem;">of @Money(r.Goal.TargetAmount)</div></div>
+                    </div>
+                }
+            }
+            else { <p class="text-muted small mb-0">No milestones in progress.</p> }
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title"><i class="bi bi-heart-pulse"></i> Goal Health</h6>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span style="font-size:1.8rem;color:var(--g);filter:drop-shadow(0 0 14px var(--g-glow));"><i class="bi bi-heart-pulse-fill"></i></span>
+                <p class="small mb-0">You are on track to complete <span class="fw-bold text-success">@Model.OnTrackCount of @Model.Goals.Count goals</span> on time. Keep your monthly contributions consistent to stay on track.</p>
+            </div>
+        </div></div>
+    </div>
+</div>
+
+@foreach (var r in Model.Goals)
+{
+    <div class="modal fade" id="c-@r.Goal.Id" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+        <form asp-action="AddContribution" method="post">
+            <input type="hidden" name="id" value="@r.Goal.Id" />
+            <div class="modal-header"><h5 class="modal-title">Contribute to @r.Goal.Name</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <label class="form-label">Amount</label>
+                <input name="amount" type="number" step="0.01" min="0.01" class="form-control mb-2" required />
+                <label class="form-label">Note (optional)</label>
+                <input name="note" class="form-control" />
+            </div>
+            <div class="modal-footer"><button class="btn btn-primary">Add contribution</button></div>
+        </form>
+    </div></div></div>
+}
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script>
+        var ctx = document.getElementById('trendChart');
+        var g = ctx.getContext('2d').createLinearGradient(0, 0, 0, 170);
+        g.addColorStop(0, 'rgba(37,224,126,.35)'); g.addColorStop(1, 'rgba(37,224,126,0)');
+        new Chart(ctx, {
+            type: 'line',
+            data: { labels: @Html.Raw(Json.Serialize(Model.Trend.Select(t => t.Label))),
+                    datasets: [{ data: @Html.Raw(Json.Serialize(Model.Trend.Select(t => t.Amount))), borderColor: '#25e07e', backgroundColor: g, fill: true, tension: .4, pointRadius: 3, pointBackgroundColor: '#25e07e' }] },
+            options: { plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#7c8694' } }, y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#7c8694' } } } }
+        });
+    </script>
 }

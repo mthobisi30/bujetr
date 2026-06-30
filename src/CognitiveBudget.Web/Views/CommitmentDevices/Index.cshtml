@@ -1,61 +1,97 @@
 @model IEnumerable<CommitmentDevice>
 @{
-    ViewData["Title"] = "Your commitment rules";
+    ViewData["Title"] = "Rules";
+    string Money(decimal d) => d.ToString("C0");
+    var rules = Model.ToList();
+    var activeRules = rules.Count(r => r.IsActive);
+    var totalFired = rules.Sum(r => r.TriggerCount);
+    var totalHeeded = rules.Sum(r => r.HeededCount);
+    var heedRate = totalFired > 0 ? (int)Math.Round((double)totalHeeded / totalFired * 100) : 0;
+    var coverage = rules.GroupBy(r => r.RuleType).Select(g => (Type: ((Enum)g.Key).Humanize(), Count: g.Count(), Active: g.Count(x => x.IsActive))).ToList();
+    Func<CommitmentRuleType, string> ruleIcon = t => t switch
+    {
+        CommitmentRuleType.SpendingThreshold => "bi-cash-stack",
+        CommitmentRuleType.CategoryLimit => "bi-tag",
+        CommitmentRuleType.TimeBasedLimit => "bi-clock",
+        CommitmentRuleType.MerchantBlock => "bi-shop",
+        _ => "bi-shield-check"
+    };
 }
 
-<div class="page-header">
-    <h2><i class="bi bi-shield-check text-primary"></i> Commitment rules</h2>
-    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add rule</a>
+<div class="hero">
+    <div class="page-header">
+        <div><h2>Insights</h2><p class="text-muted m-0">Monitor patterns, understand your money, and automate smarter financial decisions.</p></div>
+        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> New Rule</a>
+    </div>
+    <partial name="_InsightsTabs" model="@("rules")" />
 </div>
 
-@if (!Model.Any())
-{
-    <div class="card"><div class="empty-state">
-        <i class="bi bi-shield-slash"></i>
-        <h5>No rules yet</h5>
-        <p>Commitment rules add friction before risky purchases — e.g. "warn me if I spend over £50 at weekends".</p>
-        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Create your first rule</a>
-    </div></div>
-}
-else
-{
-    <div class="card"><div class="card-body p-0">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead><tr>
-                <th scope="col">Name</th><th scope="col">Type</th><th scope="col">When triggered</th>
-                <th scope="col">Usage</th><th scope="col" class="text-end">Actions</th>
-            </tr></thead>
-            <tbody>
-            @foreach (var d in Model)
+@if (TempData["Success"] != null) { <div class="alert alert-success mt-3">@TempData["Success"]</div> }
+
+<!-- KPIs -->
+<div class="row row-cols-2 row-cols-xl-4 g-3 my-1">
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Active Rules</div><div class="val">@activeRules</div><div class="text-muted small">of @rules.Count total</div></div><span class="chip-ico"><i class="bi bi-shield-check"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Times Triggered</div><div class="val">@totalFired</div><div class="text-muted small">all-time</div></div><span class="chip-ico violet"><i class="bi bi-lightning-charge"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Heeded Rate</div><div class="val">@heedRate%</div><div class="text-muted small">advice followed</div></div><span class="chip-ico cyan"><i class="bi bi-check2-circle"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Paused</div><div class="val">@(rules.Count - activeRules)</div><div class="text-muted small">not enforcing</div></div><span class="chip-ico red"><i class="bi bi-pause-circle"></i></span></div></div></div>
+</div>
+
+<div class="dash-grid">
+    <div class="dash-col">
+        <div class="card"><div class="card-body p-0">
+            <div class="d-flex justify-content-between align-items-center p-3 pb-2"><h6 class="card-title m-0"><i class="bi bi-gear-wide-connected"></i> Automation Rules</h6></div>
+            @if (!rules.Any())
             {
-                <tr>
-                    <td>
-                        <div class="fw-semibold">@d.Name</div>
-                        <small class="text-muted">@d.Description</small>
-                    </td>
-                    <td><span class="badge bg-light text-dark border">@(((Enum)d.RuleType).Humanize())</span></td>
-                    <td>@(((Enum)d.Action).Humanize())</td>
-                    <td>
-                        <small class="text-muted">
-                            Fired @d.TriggerCount · heeded @d.HeededCount
-                            @if (d.TriggerCount > 0)
-                            {
-                                <text>(@(((double)d.HeededCount / d.TriggerCount).ToString("P0")))</text>
-                            }
-                        </small>
-                    </td>
-                    <td class="text-end text-nowrap">
-                        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = d.Id })" title="Edit"><i class="bi bi-pencil"></i></a>
-                        <form asp-action="Delete" method="post" class="d-inline">
-                            <input type="hidden" name="id" value="@d.Id" />
-                            <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Remove this rule?');"><i class="bi bi-trash"></i></button>
-                        </form>
-                    </td>
-                </tr>
+                <div class="empty-state"><i class="bi bi-shield-check"></i><h5>No rules yet</h5><p>Create commitment rules to keep your spending in check automatically.</p>
+                    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Create your first rule</a></div>
             }
-            </tbody>
-        </table>
+            else
+            {
+                <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Rule</th><th>Trigger</th><th>Action</th><th>Scope</th><th>Fired</th><th>Status</th><th class="text-end">Manage</th></tr></thead>
+                    <tbody>
+                    @foreach (var r in rules)
+                    {
+                        <tr>
+                            <td><div class="d-flex align-items-center gap-2"><span style="width:2.1rem;height:2.1rem;border-radius:.6rem;display:grid;place-items:center;color:var(--g);background:var(--g-soft);"><i class="bi @ruleIcon(r.RuleType)"></i></span><span class="fw-semibold">@r.Name</span></div></td>
+                            <td class="small">@(((Enum)r.RuleType).Humanize())</td>
+                            <td><span class="pill pill-violet">@(((Enum)r.Action).Humanize())</span></td>
+                            <td class="text-muted small">@(!string.IsNullOrEmpty(r.Category) ? r.Category : r.ThresholdAmount.HasValue ? Money(r.ThresholdAmount.Value) : !string.IsNullOrEmpty(r.MerchantKeyword) ? r.MerchantKeyword : "All")</td>
+                            <td class="small">@r.TriggerCount</td>
+                            <td><span class="pill @(r.IsActive ? "pill-green" : "pill-gray")">@(r.IsActive ? "Enabled" : "Paused")</span></td>
+                            <td class="text-end text-nowrap">
+                                <a class="btn btn-sm btn-outline-secondary icon-action" href="@Url.Action("Edit", new { id = r.Id })" title="Edit"><i class="bi bi-pencil"></i></a>
+                                <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('Delete this rule?');"><input type="hidden" name="id" value="@r.Id" /><button class="btn btn-sm btn-outline-danger icon-action" title="Delete"><i class="bi bi-trash"></i></button></form>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table></div>
+            }
+        </div></div>
     </div>
-    </div></div>
-}
+
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-2"><i class="bi bi-pie-chart"></i> Coverage by Type</h6>
+            @if (coverage.Any())
+            {
+                @foreach (var c in coverage)
+                {
+                    var pc = rules.Count > 0 ? (int)Math.Round((double)c.Count / rules.Count * 100) : 0;
+                    <div class="py-1"><div class="d-flex justify-content-between small"><span>@c.Type</span><span class="text-muted">@c.Active active</span></div>
+                        <div class="progress mt-1"><div class="progress-bar bg-primary" style="width:@pc%"></div></div></div>
+                }
+            }
+            else { <p class="text-muted small mb-0">No rules configured yet.</p> }
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-2"><i class="bi bi-lightbulb"></i> Rule Optimization</h6>
+            <div class="d-flex align-items-center gap-3 py-2"><span style="color:var(--g);"><i class="bi bi-calendar-check"></i></span><div><div class="small fw-semibold">Automate a payday transfer</div><div class="text-muted" style="font-size:.74rem;">Move savings the moment income lands.</div></div></div>
+            <div class="d-flex align-items-center gap-3 py-2"><span style="color:var(--g);"><i class="bi bi-shield-plus"></i></span><div><div class="small fw-semibold">Add a category limit</div><div class="text-muted" style="font-size:.74rem;">Cap your most volatile spending category.</div></div></div>
+            <div class="d-flex align-items-center gap-3 py-2"><span style="color:var(--g);"><i class="bi bi-clock-history"></i></span><div><div class="small fw-semibold">Add a time-based limit</div><div class="text-muted" style="font-size:.74rem;">Curb late-night or weekend impulse spends.</div></div></div>
+            <a class="btn btn-outline-success btn-sm w-100 mt-2" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Create a rule</a>
+        </div></div>
+    </div>
+</div>

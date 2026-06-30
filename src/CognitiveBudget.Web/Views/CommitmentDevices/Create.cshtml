@@ -3,20 +3,16 @@
     ViewData["Title"] = "New commitment rule";
 }
 
-<div class="page-header">
-    <h2><i class="bi bi-shield-plus text-primary"></i> New commitment rule</h2>
-    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-arrow-left"></i> Back</a>
-</div>
-
-<div class="card"><div class="card-body">
-<form asp-action="Create" method="post">
-    <partial name="_DeviceFields" model="Model" />
-    <div class="mt-4">
-        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Create rule</button>
-        <a class="btn btn-link" href="@Url.Action("Index")">Cancel</a>
-    </div>
-</form>
-</div></div>
+<div class="form-card wide"><div class="card"><div class="card-body p-4 p-md-5">
+    <div class="form-head"><span class="fh-ico"><i class="bi bi-shield-plus"></i></span><div><h3>New commitment rule</h3><p class="text-muted small mb-0">Define a rule to keep your spending in check.</p></div></div>
+    <form asp-action="Create" method="post">
+        <partial name="_DeviceFields" model="Model" />
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Create rule</button>
+            <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Cancel</a>
+        </div>
+    </form>
+</div></div></div>
 
 @section Scripts {
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}

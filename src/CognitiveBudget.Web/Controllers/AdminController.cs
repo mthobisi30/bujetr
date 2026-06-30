@@ -39,7 +39,8 @@ public class AdminController : Controller
             Bills        = await _db.Bills.CountAsync(),
             Debts        = await _db.Debts.CountAsync(),
             ActiveUsers30d = await _db.Users.CountAsync(u => u.LastLoginAt != null && u.LastLoginAt >= since),
-            RecentLogins = await _db.AuditLogs.CountAsync(a => a.Action == "Login" && a.Timestamp >= since)
+            RecentLogins = await _db.AuditLogs.CountAsync(a => a.Action == "Login" && a.Timestamp >= since),
+            RecentAudits = await _db.AuditLogs.OrderByDescending(a => a.Timestamp).Take(6).ToListAsync()
         };
         return View(vm);
     }
@@ -125,6 +126,7 @@ public class AdminStatsViewModel
     public int Bills { get; set; }
     public int Debts { get; set; }
     public int RecentLogins { get; set; }
+    public List<AuditLog> RecentAudits { get; set; } = new();
 }
 
 public class AdminUserRow

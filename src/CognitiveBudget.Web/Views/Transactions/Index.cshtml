@@ -1,100 +1,161 @@
 @model TransactionListViewModel
 @{
     ViewData["Title"] = "Transactions";
+    string Money(decimal d) => d.ToString("C0");
+    var qDate = (DateTime? d) => d?.ToString("yyyy-MM-dd");
+
+    Func<string, (string cls, string icon)> cat = c => (c ?? "").ToLower() switch
+    {
+        "groceries" => ("pill-cyan", "bi-cart"),
+        "entertainment" => ("pill-violet", "bi-controller"),
+        "health" => ("pill-red", "bi-heart-pulse"),
+        "transport" => ("pill-amber", "bi-bus-front"),
+        "dining" or "eating out" => ("pill-amber", "bi-cup-hot"),
+        "shopping" => ("pill-violet", "bi-bag"),
+        "clothing" => ("pill-cyan", "bi-bag-heart"),
+        "salary" or "side hustle" => ("pill-green", "bi-cash-coin"),
+        "utilities" or "subscriptions" or "housing" => ("pill-cyan", "bi-house"),
+        _ => ("pill-gray", "bi-tag")
+    };
+    Func<string, string> moodPill = c => c switch { "success" => "pill-green", "danger" => "pill-red", "warning" => "pill-amber", "secondary" => "pill-gray", _ => "pill-cyan" };
+    object Route(int p) => new { page = p, search = Model.Search, category = Model.Category, type = Model.Type, sort = Model.Sort, from = qDate(Model.From), to = qDate(Model.To) };
 }
 
-<div class="page-header">
-    <h2><i class="bi bi-list-ul text-primary"></i> Transactions</h2>
-    <div class="d-flex gap-2">
-        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add new</a>
-        <a class="btn btn-outline-secondary" href="@Url.Action("Upload")"><i class="bi bi-upload"></i> Import CSV</a>
+<div class="hero">
+    <div class="page-header">
+        <div>
+            <h2>Transactions</h2>
+            <p class="text-muted m-0">Track, filter, and manage every income and expense in one place.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add Transaction</a>
+            <a class="btn btn-outline-secondary" href="@Url.Action("Upload")"><i class="bi bi-upload"></i> Import CSV</a>
+        </div>
     </div>
 </div>
 
 <!-- Filter bar -->
-<div class="card mb-3"><div class="card-body py-3">
-    <form method="get" class="row g-2 align-items-end">
+<div class="card mb-3"><div class="card-body">
+    <form id="txnFilter" method="get" class="row g-2 align-items-end">
+        <input type="hidden" name="sort" value="@Model.Sort" />
         <div class="col-12 col-md-4">
             <label class="form-label small mb-1" for="search">Search</label>
-            <input id="search" name="search" value="@Model.Search" class="form-control form-control-sm" placeholder="description or merchant" />
+            <div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input id="search" name="search" value="@Model.Search" class="form-control" placeholder="Search description or merchant" /></div>
         </div>
         <div class="col-6 col-md-2">
             <label class="form-label small mb-1" for="category">Category</label>
-            <select id="category" name="category" class="form-select form-select-sm">
-                <option value="">All</option>
-                @foreach (var c in Model.Categories)
-                {
-                    <option value="@c" selected="@(c == Model.Category)">@c</option>
-                }
+            <select id="category" name="category" class="form-select">
+                <option value="">All categories</option>
+                @foreach (var c in Model.Categories) { <option value="@c" selected="@(c == Model.Category)">@c</option> }
             </select>
         </div>
         <div class="col-6 col-md-2">
             <label class="form-label small mb-1" for="type">Type</label>
-            <select id="type" name="type" class="form-select form-select-sm">
+            <select id="type" name="type" class="form-select">
                 <option value="">All</option>
                 <option value="Expense" selected="@(Model.Type == TransactionType.Expense)">Expense</option>
                 <option value="Income" selected="@(Model.Type == TransactionType.Income)">Income</option>
             </select>
         </div>
-        <div class="col-6 col-md-2">
-            <label class="form-label small mb-1" for="from">From</label>
-            <input id="from" type="date" name="from" value="@(Model.From?.ToString("yyyy-MM-dd"))" class="form-control form-control-sm" />
-        </div>
-        <div class="col-6 col-md-2">
-            <label class="form-label small mb-1" for="to">To</label>
-            <input id="to" type="date" name="to" value="@(Model.To?.ToString("yyyy-MM-dd"))" class="form-control form-control-sm" />
-        </div>
-        <div class="col-6 col-md-2 d-flex gap-2">
-            <button class="btn btn-sm btn-primary flex-grow-1"><i class="bi bi-funnel"></i> Filter</button>
-            @if (Model.HasFilter)
-            {
-                <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")" title="Clear filters"><i class="bi bi-x-lg"></i></a>
-            }
+        <div class="col-6 col-md-2"><label class="form-label small mb-1" for="from">From</label>
+            <input id="from" type="date" name="from" value="@qDate(Model.From)" class="form-control" /></div>
+        <div class="col-6 col-md-2"><label class="form-label small mb-1" for="to">To</label>
+            <input id="to" type="date" name="to" value="@qDate(Model.To)" class="form-control" /></div>
+        <div class="col-12 d-flex gap-2 justify-content-end">
+            <button class="btn btn-primary"><i class="bi bi-funnel"></i> Filter</button>
+            <a class="btn btn-link" href="@Url.Action("Index")"><i class="bi bi-arrow-counterclockwise"></i> Reset</a>
         </div>
     </form>
 </div></div>
 
-@if (!Model.Items.Any())
-{
-    <div class="card"><div class="empty-state">
-        <i class="bi bi-inbox"></i>
-        <h5>@(Model.HasFilter ? "No transactions match your filters" : "No transactions yet")</h5>
-        <p>@(Model.HasFilter ? "Try widening your search or clearing the filters." : "Add your first transaction to start tracking your spending.")</p>
-        @if (!Model.HasFilter)
-        {
-            <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add a transaction</a>
-        }
+<!-- KPI cards -->
+<div class="row row-cols-2 row-cols-xl-4 g-3 mb-3">
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between align-items-start"><span class="chip-ico"><i class="bi bi-arrow-down-left"></i></span></div>
+        <div class="lbl mt-2">Total Income</div>
+        <div class="val text-success" style="font-size:1.6rem;">+@Money(Model.MonthIncome)</div>
+        <div class="text-muted small">This month</div>
     </div></div>
-}
-else
-{
-    <div class="card"><div class="card-body p-0">
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between align-items-start"><span class="chip-ico red"><i class="bi bi-arrow-up-right"></i></span></div>
+        <div class="lbl mt-2">Total Expenses</div>
+        <div class="val" style="font-size:1.6rem;">@Money(Model.MonthExpense)</div>
+        <div class="text-muted small">This month</div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between align-items-start"><span class="chip-ico"><i class="bi bi-graph-up-arrow"></i></span></div>
+        <div class="lbl mt-2">Net Balance</div>
+        <div class="val @(Model.MonthNet >= 0 ? "text-success" : "text-danger")" style="font-size:1.6rem;">@Money(Model.MonthNet)</div>
+        <div class="text-muted small">This month</div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between align-items-start"><span class="chip-ico cyan"><i class="bi bi-receipt"></i></span></div>
+        <div class="lbl mt-2">Transactions</div>
+        <div class="val" style="font-size:1.6rem;">@Model.TotalCount</div>
+        <div class="text-muted small">Total records</div>
+    </div></div>
+</div>
+
+<!-- Transaction history -->
+<div class="card"><div class="card-body p-0">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 pb-2">
+        <div>
+            <h6 class="card-title m-0"><i class="bi bi-clock-history"></i> Transaction History</h6>
+            <span class="text-muted small">
+                @if (Model.TotalCount > 0) { <text>Showing @((Model.Page - 1) * Model.PageSize + 1)–@(Math.Min(Model.Page * Model.PageSize, Model.TotalCount)) of @Model.TotalCount</text> }
+                else { <text>No transactions</text> }
+            </span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <select class="form-select form-select-sm" style="width:auto;" onchange="document.getElementById('txnFilter').querySelector('[name=sort]').value=this.value;document.getElementById('txnFilter').submit();">
+                <option value="newest" selected="@(Model.Sort == "newest")">Sort: Newest first</option>
+                <option value="oldest" selected="@(Model.Sort == "oldest")">Sort: Oldest first</option>
+                <option value="high" selected="@(Model.Sort == "high")">Sort: Highest amount</option>
+                <option value="low" selected="@(Model.Sort == "low")">Sort: Lowest amount</option>
+            </select>
+            <div class="btn-group btn-group-sm view-toggle" role="group">
+                <button type="button" class="btn btn-outline-secondary active" id="viewTable"><i class="bi bi-table"></i> Table</button>
+                <button type="button" class="btn btn-outline-secondary" id="viewCompact"><i class="bi bi-list"></i> Compact</button>
+            </div>
+            <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("ExportCsv","Reports")"><i class="bi bi-download"></i> Export</a>
+        </div>
+    </div>
+
+    @if (!Model.Items.Any())
+    {
+        <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            <h5>@(Model.HasFilter ? "No transactions match your filters" : "No transactions yet")</h5>
+            <p>@(Model.HasFilter ? "Try widening your search or resetting the filters." : "Add your first transaction to start tracking your spending.")</p>
+            @if (!Model.HasFilter) { <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add a transaction</a> }
+        </div>
+    }
+    else
+    {
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0" id="txnTable">
                 <thead><tr>
-                    <th scope="col">Date</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Category</th>
-                    <th scope="col">Description</th><th scope="col">Merchant</th><th scope="col">Mood</th><th scope="col" class="text-end">Actions</th>
+                    <th>Date</th><th>Type</th><th>Amount</th><th>Category</th><th>Description</th><th>Merchant</th><th>Mood</th><th class="text-end">Actions</th>
                 </tr></thead>
                 <tbody>
-                @foreach (var tx in Model.Items)
+                @foreach (var t in Model.Items)
                 {
-                    var isIncome = tx.Type == TransactionType.Income;
+                    var isIncome = t.Type == TransactionType.Income;
+                    var cp = cat(t.Category);
                     <tr>
-                        <td>@tx.TransactionDate.ToString("dd MMM yyyy")</td>
-                        <td>
-                            @if (isIncome) { <span class="badge rounded-pill bg-success"><i class="bi bi-arrow-down-left"></i> Income</span> }
-                            else { <span class="badge rounded-pill bg-light text-dark border"><i class="bi bi-arrow-up-right"></i> Expense</span> }
-                        </td>
-                        <td class="fw-semibold @(isIncome ? "text-success" : "")">@(isIncome ? "+" : "")@tx.Amount.ToString("C")</td>
-                        <td><span class="badge bg-light text-dark border">@tx.Category</span></td>
-                        <td>@tx.Description</td>
-                        <td class="text-muted">@tx.Merchant</td>
-                        <td>@if (tx.EmotionalState != null) {<span class="badge rounded-pill bg-@(tx.EmotionalState.MoodCssClass())">@tx.EmotionalState.Humanize()</span>}</td>
+                        <td class="small text-nowrap">@t.TransactionDate.ToString("dd MMM yyyy")</td>
+                        <td>@if (isIncome) { <span class="pill pill-green"><i class="bi bi-arrow-down"></i> Income</span> } else { <span class="pill pill-gray"><i class="bi bi-arrow-up-right"></i> Expense</span> }</td>
+                        <td class="fw-semibold @(isIncome ? "text-success" : "")">@(isIncome ? "+" : "")@t.Amount.ToString("C")</td>
+                        <td><span class="pill @cp.cls"><i class="bi @cp.icon me-1"></i>@t.Category</span></td>
+                        <td>@t.Description</td>
+                        <td class="text-muted">@(string.IsNullOrEmpty(t.Merchant) ? "—" : t.Merchant)</td>
+                        <td>@if (t.EmotionalState != null) { <span class="pill @moodPill(t.EmotionalState.MoodCssClass())">@t.EmotionalState.Humanize()</span> } else { <span class="text-muted">—</span> }</td>
                         <td class="text-end text-nowrap">
-                            <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = tx.Id })" title="Edit"><i class="bi bi-pencil"></i></a>
+                            <a class="btn btn-sm btn-outline-success icon-action" href="@Url.Action("Edit", new { id = t.Id })" title="Edit"><i class="bi bi-pencil"></i></a>
                             <form asp-action="Delete" method="post" class="d-inline">
-                                <input type="hidden" name="id" value="@tx.Id" />
-                                <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Delete this transaction?');"><i class="bi bi-trash"></i></button>
+                                <input type="hidden" name="id" value="@t.Id" />
+                                <button class="btn btn-sm btn-outline-danger icon-action" title="Delete" onclick="return confirm('Delete this transaction?');"><i class="bi bi-trash"></i></button>
                             </form>
                         </td>
                     </tr>
@@ -102,31 +163,36 @@ else
                 </tbody>
             </table>
         </div>
-    </div></div>
 
-    <!-- Pagination -->
-    <div class="d-flex justify-content-between align-items-center mt-3">
-        <small class="text-muted">
-            Showing @((Model.Page - 1) * Model.PageSize + 1)–@(Math.Min(Model.Page * Model.PageSize, Model.TotalCount)) of @Model.TotalCount
-        </small>
         @if (Model.TotalPages > 1)
         {
-            <nav aria-label="Transactions pages">
-                <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item @(Model.Page <= 1 ? "disabled" : "")">
-                        <a class="page-link" href="@Url.Action("Index", new { page = Model.Page - 1, search = Model.Search, category = Model.Category, type = Model.Type, from = Model.From?.ToString("yyyy-MM-dd"), to = Model.To?.ToString("yyyy-MM-dd") })">Previous</a>
-                    </li>
-                    @for (var p = 1; p <= Model.TotalPages; p++)
-                    {
-                        <li class="page-item @(p == Model.Page ? "active" : "")">
-                            <a class="page-link" href="@Url.Action("Index", new { page = p, search = Model.Search, category = Model.Category, type = Model.Type, from = Model.From?.ToString("yyyy-MM-dd"), to = Model.To?.ToString("yyyy-MM-dd") })">@p</a>
-                        </li>
-                    }
-                    <li class="page-item @(Model.Page >= Model.TotalPages ? "disabled" : "")">
-                        <a class="page-link" href="@Url.Action("Index", new { page = Model.Page + 1, search = Model.Search, category = Model.Category, type = Model.Type, from = Model.From?.ToString("yyyy-MM-dd"), to = Model.To?.ToString("yyyy-MM-dd") })">Next</a>
-                    </li>
-                </ul>
-            </nav>
+            <div class="d-flex justify-content-end p-3">
+                <nav aria-label="Transactions pages">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(Model.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@Url.Action("Index", Route(Model.Page - 1))">Previous</a></li>
+                        @for (var p = 1; p <= Model.TotalPages; p++)
+                        {
+                            <li class="page-item @(p == Model.Page ? "active" : "")"><a class="page-link" href="@Url.Action("Index", Route(p))">@p</a></li>
+                        }
+                        <li class="page-item @(Model.Page >= Model.TotalPages ? "disabled" : "")"><a class="page-link" href="@Url.Action("Index", Route(Model.Page + 1))">Next</a></li>
+                    </ul>
+                </nav>
+            </div>
         }
-    </div>
+    }
+</div></div>
+
+@section Scripts {
+    <script>
+        var vt = document.getElementById('viewTable'), vc = document.getElementById('viewCompact'), tbl = document.getElementById('txnTable');
+        function setView(compact) {
+            if (tbl) tbl.classList.toggle('compact', compact);
+            if (vc) vc.classList.toggle('active', compact);
+            if (vt) vt.classList.toggle('active', !compact);
+            try { localStorage.setItem('cb-txn-view', compact ? 'compact' : 'table'); } catch (e) {}
+        }
+        if (vc) vc.addEventListener('click', function () { setView(true); });
+        if (vt) vt.addEventListener('click', function () { setView(false); });
+        try { if (localStorage.getItem('cb-txn-view') === 'compact') setView(true); } catch (e) {}
+    </script>
 }

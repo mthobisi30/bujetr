@@ -259,29 +259,53 @@ public class DashboardController : Controller
         var userId = _userManager.GetUserId(User)!;
         var now    = DateTime.UtcNow;
 
-        var from = now.AddMonths(-1);
+        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var prevStart  = monthStart.AddMonths(-1);
+        var prevEnd    = monthStart.AddTicks(-1);
 
-        var recentTransactions = await _transactionRepo.GetByUserIdAsync(userId, page: 1, pageSize: 10);
+        var recentTransactions = (await _transactionRepo.GetByUserIdAsync(userId, page: 1, pageSize: 8)).ToList();
         var activeTriggers     = (await _triggerRepo.GetActiveByUserIdAsync(userId)).ToList();
-        var categoryTotals     = (await _transactionRepo.GetCategoryTotalsAsync(userId, from, now)).ToList();
-        var dayPatterns        = await _transactionRepo.GetSpendingPatternsByDayOfWeekAsync(userId);
-        var moodSpending       = await _transactionRepo.GetMoodSpendingAsync(userId, from, now);
+        var categoryTotals     = (await _transactionRepo.GetCategoryTotalsAsync(userId, monthStart, now)).ToList();
+        var moodSpending       = (await _transactionRepo.GetMoodSpendingAsync(userId, monthStart, now)).ToList();
         var (shown, heeded)    = await _transactionRepo.GetNudgeStatsAsync(userId);
-        var (income, _)        = await _transactionRepo.GetMonthlyTotalsAsync(userId, from, now);
+        var (income, expense)  = await _transactionRepo.GetMonthlyTotalsAsync(userId, monthStart, now);
+        var (prevIncome, prevExpense) = await _transactionRepo.GetMonthlyTotalsAsync(userId, prevStart, prevEnd);
         var budget             = await _budgetService.GetProgressAsync(userId, now.Year, now.Month);
         var bills              = (await _billRepo.GetByUserIdAsync(userId)).ToList();
         var goals              = (await _goalRepo.GetByUserIdAsync(userId)).ToList();
         var debts              = (await _debtRepo.GetByUserIdAsync(userId)).ToList();
         var alerts             = await _alertService.GetAlertsAsync(userId);
 
+        // Daily spend series for this month (area chart + spark bars).
+        var monthTx = await _transactionRepo.GetByDateRangeAsync(userId, monthStart, now);
+        var byDay = monthTx.Where(t => t.Type == TransactionType.Expense)
+                           .GroupBy(t => t.TransactionDate.Day)
+                           .ToDictionary(g => g.Key, g => g.Sum(t => t.Amount));
+        var daily = new List<DashboardDailyPoint>();
+        for (var d = 1; d <= now.Day; d++) daily.Add(new DashboardDailyPoint(d, byDay.GetValueOrDefault(d)));
+
+        static double Delta(decimal cur, decimal prev) => prev != 0 ? (double)((cur - prev) / Math.Abs(prev)) * 100 : 0;
+        var net = income - expense;
+        var prevNet = prevIncome - prevExpense;
+        var featured = goals.FirstOrDefault(g => !g.IsCompleted) ?? goals.FirstOrDefault();
+
+        string insight; bool positive;
+        if (prevExpense > 0 && expense <= prevExpense)
+        { insight = $"You've spent {Math.Abs(Delta(expense, prevExpense)):0}% less than last month. Great pace — keep it up."; positive = true; }
+        else if (prevExpense > 0)
+        { insight = $"You're spending {Delta(expense, prevExpense):0}% more than last month. Worth a quick check-in."; positive = false; }
+        else if (categoryTotals.Count > 0)
+        { insight = $"{categoryTotals[0].Category} is your biggest category this month at {categoryTotals[0].Total:C0}."; positive = true; }
+        else { insight = "Add a few transactions to unlock personalised insights."; positive = true; }
+
         var vm = new DashboardViewModel
         {
-            RecentTransactions = recentTransactions.ToList(),
+            RecentTransactions = recentTransactions,
             TopTriggers        = activeTriggers.Take(3).ToList(),
             CategoryTotals     = categoryTotals,
-            DayOfWeekPatterns  = dayPatterns.ToList(),
-            MoodSpending       = moodSpending.ToList(),
-            TotalSpend         = categoryTotals.Sum(c => c.Total),
+            MoodSpending       = moodSpending,
+            DailySpending      = daily,
+            TotalSpend         = expense,
             TotalIncome        = income,
             TransactionCount   = categoryTotals.Sum(c => c.Count),
             ActiveTriggerCount = activeTriggers.Count,
@@ -290,8 +314,15 @@ public class DashboardController : Controller
             Budget             = budget,
             TotalSaved         = goals.Sum(g => g.Contributions.Sum(c => c.Amount)),
             TotalDebt          = debts.Sum(d => d.CurrentBalance),
+            DebtCount          = debts.Count,
             UpcomingBills      = bills.Take(4).ToList(),
-            Alerts             = alerts
+            Alerts             = alerts,
+            FeaturedGoal       = featured,
+            IncomeDeltaPct     = Delta(income, prevIncome),
+            SpendDeltaPct      = Delta(expense, prevExpense),
+            NetDeltaPct        = prevNet != 0 ? (double)((net - prevNet) / Math.Abs(prevNet)) * 100 : 0,
+            SmartInsight       = insight,
+            InsightPositive    = positive
         };
 
         return View(vm);
@@ -341,14 +372,18 @@ public class TransactionsController : Controller
 
     public async Task<IActionResult> Index(
         int page = 1, string? search = null, string? category = null, TransactionType? type = null,
-        DateTime? from = null, DateTime? to = null)
+        DateTime? from = null, DateTime? to = null, string? sort = null)
     {
         const int pageSize = 20;
         if (page < 1) page = 1;
 
         var userId = _userManager.GetUserId(User)!;
-        var (items, total) = await _repo.GetFilteredAsync(userId, search, category, type, from, to, page, pageSize);
+        var (items, total) = await _repo.GetFilteredAsync(userId, search, category, type, from, to, sort, page, pageSize);
         var categories = await _repo.GetCategoriesAsync(userId);
+
+        var now = DateTime.UtcNow;
+        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var (mIncome, mExpense) = await _repo.GetMonthlyTotalsAsync(userId, monthStart, now);
 
         var vm = new TransactionListViewModel
         {
@@ -361,7 +396,10 @@ public class TransactionsController : Controller
             Category = category,
             Type = type,
             From = from,
-            To = to
+            To = to,
+            Sort = sort ?? "newest",
+            MonthIncome = mIncome,
+            MonthExpense = mExpense
         };
         return View(vm);
     }
@@ -578,6 +616,154 @@ public class TransactionsController : Controller
 }
 
 
+// ─── Insights overview ─────────────────────────────────────────────────────────
+
+[Authorize]
+public class InsightsController : Controller
+{
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ITransactionRepository _txRepo;
+    private readonly IBudgetService _budget;
+    private readonly IBillRepository _billRepo;
+    private readonly ISavingsGoalRepository _goalRepo;
+    private readonly ISpendingTriggerRepository _triggerRepo;
+
+    public InsightsController(UserManager<ApplicationUser> userManager, ITransactionRepository txRepo,
+        IBudgetService budget, IBillRepository billRepo, ISavingsGoalRepository goalRepo, ISpendingTriggerRepository triggerRepo)
+    {
+        _userManager = userManager;
+        _txRepo = txRepo;
+        _budget = budget;
+        _billRepo = billRepo;
+        _goalRepo = goalRepo;
+        _triggerRepo = triggerRepo;
+    }
+
+    public async Task<IActionResult> Index()
+    {
+        var userId = _userManager.GetUserId(User)!;
+        var now = DateTime.UtcNow;
+        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var prevStart = monthStart.AddMonths(-1);
+
+        var (income, expense) = await _txRepo.GetMonthlyTotalsAsync(userId, monthStart, now);
+        var (pIncome, pExpense) = await _txRepo.GetMonthlyTotalsAsync(userId, prevStart, monthStart.AddTicks(-1));
+
+        static double Rate(decimal inc, decimal exp) => inc > 0 ? (double)((inc - exp) / inc) * 100 : 0;
+        var savingsRate = Rate(income, expense);
+        var prevRate = Rate(pIncome, pExpense);
+
+        // daily cash-flow series (current month)
+        var monthTx = (await _txRepo.GetByDateRangeAsync(userId, monthStart, now)).ToList();
+        var daysSoFar = now.Day;
+        var dailyIncome = new List<decimal>();
+        var dailyExpense = new List<decimal>();
+        for (var d = 1; d <= daysSoFar; d++)
+        {
+            dailyIncome.Add(monthTx.Where(t => t.TransactionDate.Day == d && t.Type == TransactionType.Income).Sum(t => t.Amount));
+            dailyExpense.Add(monthTx.Where(t => t.TransactionDate.Day == d && t.Type == TransactionType.Expense).Sum(t => t.Amount));
+        }
+
+        // behaviour snapshot (category breakdown)
+        var categories = (await _txRepo.GetCategoryTotalsAsync(userId, monthStart, now))
+            .OrderByDescending(c => c.Total).ToList();
+
+        // time-of-week heatmap from last 90 days
+        var since = now.AddDays(-90);
+        var recentTx = (await _txRepo.GetByDateRangeAsync(userId, since, now))
+            .Where(t => t.Type == TransactionType.Expense).ToList();
+        // 4 buckets (Morning/Afternoon/Evening/Night) x 7 days (Mon..Sun)
+        var heat = new decimal[4, 7];
+        foreach (var t in recentTx)
+        {
+            var h = t.TransactionDate.Hour;
+            var bucket = h < 6 ? 3 : h < 12 ? 0 : h < 18 ? 1 : 2; // Night=3 placed last visually
+            var dow = ((int)t.TransactionDate.DayOfWeek + 6) % 7; // Mon=0
+            heat[bucket, dow] += t.Amount;
+        }
+        var heatRows = new List<InsightHeatRow>();
+        var bucketLabels = new[] { "Morning", "Afternoon", "Evening", "Night" };
+        var heatMax = 1m;
+        for (var b = 0; b < 4; b++) for (var d = 0; d < 7; d++) heatMax = Math.Max(heatMax, heat[b, d]);
+        for (var b = 0; b < 4; b++)
+        {
+            var cells = new List<int>();
+            for (var d = 0; d < 7; d++) cells.Add((int)Math.Round((double)(heat[b, d] / heatMax) * 100));
+            heatRows.Add(new InsightHeatRow(bucketLabels[b], cells));
+        }
+
+        // budget progress → spending efficiency + alerts
+        var progress = await _budget.GetProgressAsync(userId, now.Year, now.Month);
+        var overCats = progress.Categories.Where(c => c.Over).ToList();
+        int efficiency = progress.Categories.Any()
+            ? (int)Math.Round((double)progress.Categories.Count(c => !c.Over) / progress.Categories.Count * 100)
+            : (int)Math.Max(0, savingsRate);
+
+        // automation coverage = autopay bills + active goal coverage proxy
+        var bills = (await _billRepo.GetByUserIdAsync(userId)).ToList();
+        var autoCoverage = bills.Count > 0 ? (int)Math.Round((double)bills.Count(b => b.AutoPay) / bills.Count * 100) : 0;
+
+        // alerts
+        var today = now.Date;
+        var billsSoon = bills.Where(b => b.NextDueDate.Date >= today && (b.NextDueDate.Date - today).Days <= 7).ToList();
+        var goals = (await _goalRepo.GetByUserIdAsync(userId)).ToList();
+        var alerts = new List<InsightAlert>();
+        if (overCats.Any())
+            alerts.Add(new InsightAlert("Overspending risk", $"{overCats[0].Category} is over budget this month.", "High", "pill-red", "bi-shield-exclamation"));
+        if (billsSoon.Any())
+            alerts.Add(new InsightAlert("Upcoming bill cluster", $"{billsSoon.Sum(b => b.Amount):C0} in bills due in the next 7 days.", "Medium", "pill-amber", "bi-lock"));
+        if (savingsRate < 20)
+            alerts.Add(new InsightAlert("Low savings consistency", $"Savings rate is {savingsRate:0}% — below the 20% target.", "Low", "pill-cyan", "bi-graph-down"));
+
+        // top insights from detected spending triggers
+        var triggers = (await _triggerRepo.GetActiveByUserIdAsync(userId)).OrderByDescending(t => t.ConfidenceScore).Take(4).ToList();
+
+        // insight score (composite of savings rate, budget adherence, automation)
+        var score = (int)Math.Round(Math.Clamp(savingsRate, 0, 100) * .4 + efficiency * .4 + autoCoverage * .2);
+
+        var vm = new InsightsOverviewViewModel
+        {
+            SavingsRate = (int)Math.Round(savingsRate),
+            SavingsRateDelta = (int)Math.Round(savingsRate - prevRate),
+            SpendingEfficiency = efficiency,
+            AutomationCoverage = autoCoverage,
+            RiskAlertCount = alerts.Count,
+            DailyIncome = dailyIncome,
+            DailyExpense = dailyExpense,
+            MonthIncome = income,
+            MonthExpense = expense,
+            Categories = categories,
+            HeatRows = heatRows,
+            Alerts = alerts,
+            Triggers = triggers,
+            InsightScore = score
+        };
+        return View(vm);
+    }
+}
+
+public record InsightHeatRow(string Label, List<int> Cells);
+public record InsightAlert(string Title, string Detail, string Level, string LevelCls, string Icon);
+
+public class InsightsOverviewViewModel
+{
+    public int SavingsRate { get; set; }
+    public int SavingsRateDelta { get; set; }
+    public int SpendingEfficiency { get; set; }
+    public int AutomationCoverage { get; set; }
+    public int RiskAlertCount { get; set; }
+    public List<decimal> DailyIncome { get; set; } = new();
+    public List<decimal> DailyExpense { get; set; } = new();
+    public decimal MonthIncome { get; set; }
+    public decimal MonthExpense { get; set; }
+    public decimal MonthNet => MonthIncome - MonthExpense;
+    public List<CategorySpendDto> Categories { get; set; } = new();
+    public List<InsightHeatRow> HeatRows { get; set; } = new();
+    public List<InsightAlert> Alerts { get; set; } = new();
+    public List<SpendingTrigger> Triggers { get; set; } = new();
+    public int InsightScore { get; set; }
+}
+
 // ─── Spending trigger management ───────────────────────────────────────────────
 
 [Authorize]
@@ -755,7 +941,51 @@ public class BudgetsController : Controller
         var (y, m) = NormalizeMonth(year, month);
         var userId = _userManager.GetUserId(User)!;
         var progress = await _budgetService.GetProgressAsync(userId, y, m);
-        return View(progress);
+
+        var pm = m == 1 ? 12 : m - 1;
+        var py = m == 1 ? y - 1 : y;
+        var prev = await _budgetService.GetProgressAsync(userId, py, pm);
+
+        var now = DateTime.UtcNow;
+        var monthStart = new DateTime(y, m, 1, 0, 0, 0, DateTimeKind.Utc);
+        var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
+        var rangeEnd = now < monthEnd ? now : monthEnd;
+        var daysInMonth = DateTime.DaysInMonth(y, m);
+        var isCurrent = y == now.Year && m == now.Month;
+        var upTo = isCurrent ? now.Day : daysInMonth;
+
+        var monthTx = await _txRepo.GetByDateRangeAsync(userId, monthStart, rangeEnd);
+        var byDay = monthTx.Where(t => t.Type == TransactionType.Expense)
+                           .GroupBy(t => t.TransactionDate.Day)
+                           .ToDictionary(g => g.Key, g => g.Sum(t => t.Amount));
+        var daily = new List<DashboardDailyPoint>();
+        for (var d = 1; d <= upTo; d++) daily.Add(new DashboardDailyPoint(d, byDay.GetValueOrDefault(d)));
+
+        decimal budget = progress.OverallLimit ?? progress.TotalLimit;
+        decimal prevBudget = prev.OverallLimit ?? prev.TotalLimit;
+        decimal remaining = budget - progress.TotalSpent;
+        decimal prevRemaining = prevBudget - prev.TotalSpent;
+        static double Delta(decimal cur, decimal p) => p != 0 ? (double)((cur - p) / Math.Abs(p)) * 100 : 0;
+
+        var daysElapsed = Math.Max(1, upTo);
+        var projected = progress.TotalSpent / daysElapsed * daysInMonth;
+        var projectedSave = budget - projected;
+        string insight; bool positive;
+        if (budget <= 0) { insight = "Set category limits to start tracking your budget."; positive = true; }
+        else if (projectedSave >= 0) { insight = $"You're on track to save {projectedSave:C0} this month if you keep spending as you have."; positive = true; }
+        else { insight = $"At this pace you'll be {Math.Abs(projectedSave):C0} over budget. Time to ease off."; positive = false; }
+
+        var vm = new BudgetIndexViewModel
+        {
+            Progress = progress,
+            DailySpending = daily,
+            BudgetDeltaPct = Delta(budget, prevBudget),
+            SpentDeltaPct = Delta(progress.TotalSpent, prev.TotalSpent),
+            RemainingDeltaPct = Delta(remaining, prevRemaining),
+            SmartInsight = insight,
+            InsightPositive = positive
+        };
+        return View(vm);
     }
 
     [HttpGet]
@@ -808,6 +1038,139 @@ public class BudgetsController : Controller
     }
 }
 
+// ─── Planning overview ──────────────────────────────────────────────────────
+
+[Authorize]
+public class PlanningController : Controller
+{
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ISavingsGoalRepository _goals;
+    private readonly IBillRepository _bills;
+    private readonly IDebtRepository _debts;
+
+    public PlanningController(UserManager<ApplicationUser> userManager,
+        ISavingsGoalRepository goals, IBillRepository bills, IDebtRepository debts)
+    {
+        _userManager = userManager;
+        _goals = goals;
+        _bills = bills;
+        _debts = debts;
+    }
+
+    public async Task<IActionResult> Index()
+    {
+        var userId = _userManager.GetUserId(User)!;
+        var today = DateTime.UtcNow.Date;
+        var palette = new[] { "#25e07e", "#8b5cf6", "#f59e0b", "#3b82f6", "#06b6d4", "#ec4899" };
+
+        // Goals
+        var goals = (await _goals.GetByUserIdAsync(userId)).Where(g => !g.IsCompleted).ToList();
+        var goalCards = goals.Take(3).Select((g, i) =>
+        {
+            var saved = g.Contributions.Sum(c => c.Amount);
+            var pct = g.TargetAmount > 0 ? (int)Math.Min(100, (double)(saved / g.TargetAmount) * 100) : 0;
+            return new GoalSummary(g, saved, pct, Math.Max(0, g.TargetAmount - saved), palette[i % palette.Length]);
+        }).ToList();
+
+        // Bills
+        var allBills = (await _bills.GetByUserIdAsync(userId)).ToList();
+        var upcoming = allBills.Where(b => b.NextDueDate.Date >= today).OrderBy(b => b.NextDueDate).ToList();
+        var upcomingCards = upcoming.Take(4).Select(b => new BillSummary(
+            b, (b.NextDueDate.Date - today).Days,
+            (b.NextDueDate.Date - today).Days <= b.ReminderDaysBefore ? "Due soon" : "Upcoming",
+            (b.NextDueDate.Date - today).Days <= b.ReminderDaysBefore ? "pill-amber" : "pill-green",
+            BillVisual(b.Category).color, BillVisual(b.Category).icon)).ToList();
+        var soonBills = upcoming.Where(b => (b.NextDueDate.Date - today).Days <= 30).ToList();
+        var billMonths = new List<MonthBar>();
+        for (var m = 0; m < 3; m++)
+        {
+            var month = new DateTime(today.Year, today.Month, 1).AddMonths(m);
+            decimal sum = allBills.Sum(b => b.Recurrence switch
+            {
+                BillRecurrence.Weekly => b.Amount * 4,
+                BillRecurrence.Yearly => (b.NextDueDate.Month == month.Month && b.NextDueDate.Year == month.Year) ? b.Amount : 0,
+                _ => b.Amount
+            });
+            billMonths.Add(new MonthBar(month.ToString("MMM"), sum));
+        }
+
+        // Debts
+        var debts = (await _debts.GetByUserIdAsync(userId)).Where(d => d.CurrentBalance > 0).ToList();
+        var debtCards = debts.Take(3).Select((d, i) =>
+        {
+            var paidPct = d.OriginalBalance > 0 ? (int)Math.Min(100, (double)((d.OriginalBalance - d.CurrentBalance) / d.OriginalBalance) * 100) : 0;
+            var due = NextDue(d.DueDayOfMonth, today);
+            return new DebtSummary(d, paidPct, due, palette[(i + 1) % palette.Length], DebtIcon(d.DebtType));
+        }).ToList();
+        var highestApr = debts.OrderByDescending(d => d.InterestRate).FirstOrDefault();
+        string debtInsight = highestApr != null
+            ? $"Focus extra payments on {highestApr.Name} ({highestApr.InterestRate:0.##}% APR) to clear interest the fastest."
+            : "You have no outstanding debt — keep it that way!";
+
+        var vm = new PlanningOverviewViewModel
+        {
+            Goals = goalCards,
+            GoalCount = goals.Count,
+            UpcomingBills = upcomingCards,
+            TotalUpcoming = soonBills.Sum(b => b.Amount),
+            UpcomingCount = soonBills.Count,
+            BillMonths = billMonths,
+            Debts = debtCards,
+            TotalDebt = debts.Sum(d => d.CurrentBalance),
+            DebtCount = debts.Count,
+            DebtInsight = debtInsight
+        };
+        return View(vm);
+    }
+
+    static DateTime NextDue(int? dayOfMonth, DateTime today)
+    {
+        if (dayOfMonth is null) return today.AddDays(30);
+        var day = Math.Min(dayOfMonth.Value, DateTime.DaysInMonth(today.Year, today.Month));
+        var candidate = new DateTime(today.Year, today.Month, day);
+        if (candidate.Date < today) candidate = candidate.AddMonths(1);
+        return candidate;
+    }
+
+    static (string color, string icon) BillVisual(string category) => (category ?? "").ToLower() switch
+    {
+        "housing" or "rent" => ("#25e07e", "bi-house-door"),
+        "health & fitness" or "health" => ("#f59e0b", "bi-heart-pulse"),
+        "entertainment" => ("#8b5cf6", "bi-music-note-beamed"),
+        "utilities" => ("#06b6d4", "bi-wifi"),
+        "debt" => ("#ef4444", "bi-credit-card"),
+        _ => ("#9aa3b2", "bi-receipt")
+    };
+
+    static string DebtIcon(DebtType t) => t switch
+    {
+        DebtType.CreditCard => "bi-credit-card-2-front",
+        DebtType.StoreAccount => "bi-bag",
+        DebtType.StudentLoan => "bi-mortarboard",
+        DebtType.CarFinance => "bi-car-front",
+        _ => "bi-bank"
+    };
+}
+
+public record GoalSummary(SavingsGoal Goal, decimal Saved, int Pct, decimal Left, string Color);
+public record BillSummary(Bill Bill, int DaysUntil, string Status, string StatusCls, string Color, string Icon);
+public record DebtSummary(Debt Debt, int PaidPct, DateTime Due, string Color, string Icon);
+public record MonthBar(string Label, decimal Amount);
+
+public class PlanningOverviewViewModel
+{
+    public List<GoalSummary> Goals { get; set; } = new();
+    public int GoalCount { get; set; }
+    public List<BillSummary> UpcomingBills { get; set; } = new();
+    public decimal TotalUpcoming { get; set; }
+    public int UpcomingCount { get; set; }
+    public List<MonthBar> BillMonths { get; set; } = new();
+    public List<DebtSummary> Debts { get; set; } = new();
+    public decimal TotalDebt { get; set; }
+    public int DebtCount { get; set; }
+    public string DebtInsight { get; set; } = "";
+}
+
 // ─── Savings goals ────────────────────────────────────────────────────────────
 
 [Authorize]
@@ -822,8 +1185,83 @@ public class SavingsGoalsController : Controller
         _repo = repo;
     }
 
-    public async Task<IActionResult> Index()
-        => View(await _repo.GetByUserIdAsync(_userManager.GetUserId(User)!));
+    public async Task<IActionResult> Index(string? sort = null)
+    {
+        var userId = _userManager.GetUserId(User)!;
+        var today = DateTime.UtcNow.Date;
+        var palette = new[] { "#25e07e", "#8b5cf6", "#3b82f6", "#f59e0b", "#06b6d4", "#ec4899" };
+        var goals = (await _repo.GetByUserIdAsync(userId)).ToList();
+
+        var rows = goals.Select((g, i) =>
+        {
+            var saved = g.Contributions.Sum(c => c.Amount);
+            var pct = g.TargetAmount > 0 ? Math.Min(100, (double)(saved / g.TargetAmount) * 100) : 0;
+            // monthly suggestion = remaining / months left until deadline
+            decimal monthly = 0;
+            if (g.Deadline.HasValue && g.Deadline.Value.Date > today)
+            {
+                var months = Math.Max(1, ((g.Deadline.Value.Year - today.Year) * 12) + g.Deadline.Value.Month - today.Month);
+                monthly = Math.Max(0, g.TargetAmount - saved) / months;
+            }
+            // status from pace vs elapsed time
+            string status = "On Track", cls = "pill-green";
+            if (g.IsCompleted || pct >= 100) { status = "Completed"; cls = "pill-green"; }
+            else if (g.Deadline.HasValue)
+            {
+                var total = (g.Deadline.Value.Date - g.CreatedAt.Date).TotalDays;
+                var elapsed = (today - g.CreatedAt.Date).TotalDays;
+                var timeFrac = total > 0 ? Math.Clamp(elapsed / total, 0, 1) : 0;
+                var ratio = timeFrac > 0.01 ? (pct / 100.0) / timeFrac : 1;
+                if (ratio >= 0.95) { status = "On Track"; cls = "pill-green"; }
+                else if (ratio >= 0.6) { status = "Behind"; cls = "pill-amber"; }
+                else { status = "At Risk"; cls = "pill-red"; }
+            }
+            return new GoalRow(g, saved, (int)Math.Round(pct), monthly, status, cls, palette[i % palette.Length]);
+        }).ToList();
+
+        rows = sort switch
+        {
+            "target" => rows.OrderByDescending(r => r.Goal.TargetAmount).ToList(),
+            "deadline" => rows.OrderBy(r => r.Goal.Deadline ?? DateTime.MaxValue).ToList(),
+            _ => rows.OrderByDescending(r => r.Pct).ToList()
+        };
+
+        // contribution trend: last 6 months
+        var trend = new List<MonthBar>();
+        for (var m = 5; m >= 0; m--)
+        {
+            var month = new DateTime(today.Year, today.Month, 1).AddMonths(-m);
+            var sum = goals.SelectMany(g => g.Contributions)
+                .Where(c => c.Date.Year == month.Year && c.Date.Month == month.Month).Sum(c => c.Amount);
+            trend.Add(new MonthBar(month.ToString("MMM"), sum));
+        }
+
+        var activeRows = rows.Where(r => !r.Goal.IsCompleted && r.Pct < 100).ToList();
+        var totalTarget = activeRows.Sum(r => r.Goal.TargetAmount);
+        var totalSaved = activeRows.Sum(r => r.Saved);
+        var monthlyAll = activeRows.Sum(r => r.Monthly);
+        string projection = "—";
+        if (monthlyAll > 0 && totalTarget > totalSaved)
+        {
+            var monthsNeeded = (int)Math.Ceiling((double)((totalTarget - totalSaved) / monthlyAll));
+            projection = today.AddMonths(monthsNeeded).ToString("MMM yyyy");
+        }
+
+        var vm = new GoalsPageViewModel
+        {
+            Goals = rows,
+            Sort = sort ?? "progress",
+            TotalTarget = totalTarget,
+            TotalSaved = totalSaved,
+            MonthlyContribution = monthlyAll,
+            GoalCount = activeRows.Count,
+            ProjectedCompletion = projection,
+            Trend = trend,
+            Milestones = rows.Where(r => !r.Goal.IsCompleted).OrderByDescending(r => r.Pct).Take(3).ToList(),
+            OnTrackCount = rows.Count(r => r.Status is "On Track" or "Completed")
+        };
+        return View(vm);
+    }
 
     [HttpGet] public IActionResult Create() => View(new CreateSavingsGoalViewModel());
 
@@ -907,7 +1345,103 @@ public class BillsController : Controller
     }
 
     public async Task<IActionResult> Index()
-        => View(await _repo.GetByUserIdAsync(_userManager.GetUserId(User)!));
+    {
+        var userId = _userManager.GetUserId(User)!;
+        var today = DateTime.UtcNow.Date;
+        var monthStart = new DateTime(today.Year, today.Month, 1);
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+
+        var bills = (await _repo.GetByUserIdAsync(userId)).ToList();
+
+        var rows = bills.Select(b =>
+        {
+            var days = (b.NextDueDate.Date - today).Days;
+            var paidThisMonth = b.LastPaidDate.HasValue && b.LastPaidDate.Value.Year == today.Year && b.LastPaidDate.Value.Month == today.Month;
+            string status, cls;
+            if (b.NextDueDate.Date < today) { status = "Overdue"; cls = "pill-red"; }
+            else if (paidThisMonth) { status = "Paid"; cls = "pill-green"; }
+            else if (days <= b.ReminderDaysBefore) { status = "Upcoming"; cls = "pill-cyan"; }
+            else if (b.AutoPay) { status = "Scheduled"; cls = "pill-violet"; }
+            else { status = "Upcoming"; cls = "pill-cyan"; }
+            var v = BillVisual(b.Category);
+            return new BillRow(b, status, cls, days, paidThisMonth, v.color, v.icon);
+        }).ToList();
+
+        var dueThisMonth = bills.Where(b => b.NextDueDate.Date >= monthStart && b.NextDueDate.Date <= monthEnd).ToList();
+        var paidRows = rows.Where(r => r.Paid).ToList();
+        var upcoming7 = rows.Where(r => r.DaysUntil >= 0 && r.DaysUntil <= 7).ToList();
+        var overdue = rows.Where(r => r.Bill.NextDueDate.Date < today).ToList();
+
+        // this week (Mon–Sun)
+        var weekStart = today.AddDays(-((int)today.DayOfWeek + 6) % 7);
+        var week = new List<BillDay>();
+        for (var d = 0; d < 7; d++)
+        {
+            var day = weekStart.AddDays(d);
+            week.Add(new BillDay(day, bills.Where(b => b.NextDueDate.Date == day).ToList()));
+        }
+
+        // cash-flow: bills by due day in current month
+        var cashflow = new List<MonthBar>();
+        for (var d = 1; d <= DateTime.DaysInMonth(today.Year, today.Month); d++)
+        {
+            var sum = dueThisMonth.Where(b => b.NextDueDate.Day == d).Sum(b => b.Amount);
+            cashflow.Add(new MonthBar(d.ToString(), sum));
+        }
+        // insight: 4-day window with the heaviest spend
+        string insight = "Your bills are spread evenly this month.";
+        if (dueThisMonth.Any())
+        {
+            var best = 0; decimal bestSum = 0;
+            for (var d = 1; d <= cashflow.Count - 3; d++)
+            {
+                var s = cashflow.Skip(d - 1).Take(4).Sum(x => x.Amount);
+                if (s > bestSum) { bestSum = s; best = d; }
+            }
+            if (bestSum > 0)
+                insight = $"Your heaviest bill window is {best}–{Math.Min(best + 3, cashflow.Count)} {monthStart:MMM}. Plan ahead to keep cash flow healthy.";
+        }
+
+        var vm = new BillsPageViewModel
+        {
+            Bills = rows,
+            DueThisMonth = dueThisMonth.Sum(b => b.Amount),
+            DueCount = dueThisMonth.Count,
+            PaidThisMonth = paidRows.Sum(r => r.Bill.Amount),
+            PaidCount = paidRows.Count,
+            Upcoming7 = upcoming7.Sum(r => r.Bill.Amount),
+            Upcoming7Count = upcoming7.Count,
+            Overdue = overdue.Sum(r => r.Bill.Amount),
+            OverdueCount = overdue.Count,
+            Week = week,
+            WeekStart = weekStart,
+            CashFlow = cashflow,
+            Insight = insight
+        };
+        return View(vm);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleAutoPay(Guid id)
+    {
+        var b = await _repo.GetByIdAsync(id, _userManager.GetUserId(User)!);
+        if (b is null) return NotFound();
+        b.AutoPay = !b.AutoPay;
+        await _repo.UpdateAsync(b);
+        return RedirectToAction(nameof(Index));
+    }
+
+    static (string color, string icon) BillVisual(string category) => (category ?? "").ToLower() switch
+    {
+        "housing" or "rent" => ("#25e07e", "bi-house-door"),
+        "health & fitness" or "health" => ("#f59e0b", "bi-heart-pulse"),
+        "entertainment" => ("#8b5cf6", "bi-music-note-beamed"),
+        "utilities" => ("#06b6d4", "bi-wifi"),
+        "debt" => ("#ef4444", "bi-credit-card"),
+        "insurance" => ("#3b82f6", "bi-shield-check"),
+        _ => ("#9aa3b2", "bi-receipt")
+    };
 
     [HttpGet] public IActionResult Create() => View(new CreateBillViewModel());
 
@@ -921,7 +1455,7 @@ public class BillsController : Controller
             UserId = _userManager.GetUserId(User)!,
             Name = model.Name, Amount = model.Amount, Category = model.Category,
             NextDueDate = DateTime.SpecifyKind(model.NextDueDate, DateTimeKind.Utc),
-            Recurrence = model.Recurrence, ReminderDaysBefore = model.ReminderDaysBefore
+            Recurrence = model.Recurrence, ReminderDaysBefore = model.ReminderDaysBefore, AutoPay = model.AutoPay
         });
         TempData["Success"] = "Bill added.";
         return RedirectToAction(nameof(Index));
@@ -936,7 +1470,7 @@ public class BillsController : Controller
         {
             Id = b.Id, Name = b.Name, Amount = b.Amount, Category = b.Category,
             NextDueDate = b.NextDueDate, Recurrence = b.Recurrence,
-            ReminderDaysBefore = b.ReminderDaysBefore, IsActive = b.IsActive
+            ReminderDaysBefore = b.ReminderDaysBefore, IsActive = b.IsActive, AutoPay = b.AutoPay
         });
     }
 
@@ -949,7 +1483,7 @@ public class BillsController : Controller
         if (b is null) return NotFound();
         b.Name = model.Name; b.Amount = model.Amount; b.Category = model.Category;
         b.NextDueDate = DateTime.SpecifyKind(model.NextDueDate, DateTimeKind.Utc);
-        b.Recurrence = model.Recurrence; b.ReminderDaysBefore = model.ReminderDaysBefore; b.IsActive = model.IsActive;
+        b.Recurrence = model.Recurrence; b.ReminderDaysBefore = model.ReminderDaysBefore; b.IsActive = model.IsActive; b.AutoPay = model.AutoPay;
         await _repo.UpdateAsync(b);
         TempData["Success"] = "Bill updated.";
         return RedirectToAction(nameof(Index));
@@ -999,8 +1533,73 @@ public class DebtsController : Controller
         _txRepo = txRepo;
     }
 
-    public async Task<IActionResult> Index()
-        => View(await _repo.GetByUserIdAsync(_userManager.GetUserId(User)!));
+    public async Task<IActionResult> Index(string? strategy = null)
+    {
+        var userId = _userManager.GetUserId(User)!;
+        var today = DateTime.UtcNow.Date;
+        var monthStart = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var palette = new[] { "#3b82f6", "#8b5cf6", "#f59e0b", "#06b6d4", "#25e07e", "#ec4899" };
+
+        var debts = (await _repo.GetByUserIdAsync(userId)).Where(d => d.CurrentBalance > 0).ToList();
+        var (income, _) = await _txRepo.GetMonthlyTotalsAsync(userId, monthStart, DateTime.UtcNow);
+
+        var rows = debts.Select((d, i) =>
+        {
+            var paidPct = d.OriginalBalance > 0 ? (int)Math.Min(100, (double)((d.OriginalBalance - d.CurrentBalance) / d.OriginalBalance) * 100) : 0;
+            var due = NextDue(d.DueDayOfMonth, today);
+            return new DebtRow(d, paidPct, due, (due - today).Days, palette[i % palette.Length], DebtIcon(d.DebtType));
+        }).ToList();
+
+        var totalBalance = debts.Sum(d => d.CurrentBalance);
+        var totalOriginal = debts.Sum(d => d.OriginalBalance);
+        var monthlyRepay = debts.Sum(d => d.MinimumPayment);
+
+        strategy = strategy == "snowball" ? "snowball" : "avalanche";
+        var ordered = strategy == "snowball"
+            ? rows.OrderBy(r => r.Debt.CurrentBalance).ToList()
+            : rows.OrderByDescending(r => r.Debt.InterestRate).ToList();
+        // rough interest saved estimate: annual interest on the focus debt vs spread evenly
+        var focus = ordered.FirstOrDefault();
+        decimal interestSaved = focus != null ? Math.Round(focus.Debt.CurrentBalance * focus.Debt.InterestRate / 100m * 0.5m, 0) : 0;
+
+        var upcoming = rows.OrderBy(r => r.DaysLeft).Take(5).ToList();
+        string insight = focus != null
+            ? $"Paying R650 extra toward your {focus.Debt.Name} ({focus.Debt.InterestRate:0.##}% APR) could cut months off payoff and save you interest."
+            : "You have no active debt — great work!";
+
+        var vm = new DebtsPageViewModel
+        {
+            Debts = rows,
+            TotalBalance = totalBalance,
+            MonthlyRepayment = monthlyRepay,
+            UtilizationPct = totalOriginal > 0 ? (int)Math.Round((double)(totalBalance / totalOriginal) * 100) : 0,
+            IncomeSharePct = income > 0 ? (int)Math.Round((double)(monthlyRepay / income) * 100) : 0,
+            Strategy = strategy,
+            PayoffOrder = ordered,
+            InterestSaved = interestSaved,
+            UpcomingPayments = upcoming,
+            Insight = insight
+        };
+        return View(vm);
+    }
+
+    static DateTime NextDue(int? dayOfMonth, DateTime today)
+    {
+        if (dayOfMonth is null) return today.AddDays(30);
+        var day = Math.Min(dayOfMonth.Value, DateTime.DaysInMonth(today.Year, today.Month));
+        var candidate = new DateTime(today.Year, today.Month, day);
+        if (candidate.Date < today) candidate = candidate.AddMonths(1);
+        return candidate;
+    }
+
+    static string DebtIcon(DebtType t) => t switch
+    {
+        DebtType.CreditCard => "bi-credit-card-2-front",
+        DebtType.StoreAccount => "bi-bag",
+        DebtType.StudentLoan => "bi-mortarboard",
+        DebtType.CarFinance => "bi-car-front",
+        _ => "bi-bank"
+    };
 
     [HttpGet] public IActionResult Create() => View(new CreateDebtViewModel());
 
@@ -1097,15 +1696,48 @@ public class AccountsController : Controller
     public async Task<IActionResult> Index()
     {
         var userId = _userManager.GetUserId(User)!;
-        var accounts = (await _repo.GetByUserIdAsync(userId, includeArchived: true)).ToList();
-        var net = await _repo.GetNetMovementAsync(userId);
-        var transfers = await _repo.GetTransfersAsync(userId);
+        var now = DateTime.UtcNow;
+        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var accounts  = (await _repo.GetByUserIdAsync(userId, includeArchived: true)).ToList();
+        var net       = await _repo.GetNetMovementAsync(userId);
+        var transfers = await _repo.GetTransfersAsync(userId, 10);
+        var spend     = await _repo.GetSpendByAccountAsync(userId, monthStart, now);
+        var recentTx  = await _repo.GetRecentLinkedTransactionsAsync(userId, 8);
+
+        var balances = accounts.Select(a => new AccountBalance(a, a.StartingBalance + net.GetValueOrDefault(a.Id))).ToList();
+        var names    = accounts.ToDictionary(a => a.Id, a => a.Name);
+
+        decimal SumType(AccountType t) => balances.Where(b => !b.Account.IsArchived && b.Account.AccountType == t).Sum(b => b.Balance);
+        int CountType(params AccountType[] ts) => balances.Count(b => !b.Account.IsArchived && ts.Contains(b.Account.AccountType));
+
+        var spendList = spend.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value)
+            .Select(kv => new AccountSpend(names.GetValueOrDefault(kv.Key, "Account"), kv.Value)).ToList();
+
+        var activity = new List<AccountActivity>();
+        foreach (var tr in transfers)
+            activity.Add(new AccountActivity($"Transfer to {names.GetValueOrDefault(tr.ToAccountId, "account")}",
+                $"from {names.GetValueOrDefault(tr.FromAccountId, "account")}", tr.Amount, true, tr.Date, "bi-arrow-left-right"));
+        foreach (var t in recentTx)
+        {
+            var inc = t.Type == TransactionType.Income;
+            activity.Add(new AccountActivity(string.IsNullOrWhiteSpace(t.Description) ? t.Category : t.Description,
+                names.GetValueOrDefault(t.AccountId!.Value, "account"), t.Amount, inc, t.TransactionDate,
+                inc ? "bi-arrow-down-left" : "bi-arrow-up-right"));
+        }
+        activity = activity.OrderByDescending(a => a.When).Take(6).ToList();
 
         var vm = new AccountsIndexViewModel
         {
-            Accounts = accounts.Select(a => new AccountBalance(a, a.StartingBalance + net.GetValueOrDefault(a.Id))).ToList(),
-            Transfers = transfers.ToList(),
-            Names = accounts.ToDictionary(a => a.Id, a => a.Name)
+            Accounts        = balances,
+            Transfers       = transfers.ToList(),
+            Names           = names,
+            CashBalance     = SumType(AccountType.Cash),     CashCount     = CountType(AccountType.Cash),
+            CreditBalance   = SumType(AccountType.CreditCard), CreditCount = CountType(AccountType.CreditCard),
+            InvestedBalance = SumType(AccountType.Investment) + SumType(AccountType.Savings),
+            InvestedCount   = CountType(AccountType.Investment, AccountType.Savings),
+            SpendByAccount  = spendList,
+            RecentActivity  = activity
         };
         return View(vm);
     }
@@ -1367,9 +1999,19 @@ public class DashboardViewModel
     public BudgetProgress? Budget    { get; set; }
     public decimal TotalSaved        { get; set; }
     public decimal TotalDebt         { get; set; }
+    public int     DebtCount         { get; set; }
     public List<Bill> UpcomingBills  { get; set; } = new();
     public IReadOnlyList<Alert> Alerts { get; set; } = new List<Alert>();
+    public List<DashboardDailyPoint> DailySpending { get; set; } = new();
+    public SavingsGoal? FeaturedGoal { get; set; }
+    public double IncomeDeltaPct     { get; set; }
+    public double SpendDeltaPct      { get; set; }
+    public double NetDeltaPct        { get; set; }
+    public string SmartInsight       { get; set; } = "";
+    public bool   InsightPositive    { get; set; }
 }
+
+public record DashboardDailyPoint(int Day, decimal Amount);
 
 public class TransactionListViewModel
 {
@@ -1387,6 +2029,10 @@ public class TransactionListViewModel
     public TransactionType? Type { get; set; }
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
+    public string Sort { get; set; } = "newest";
+    public decimal MonthIncome { get; set; }
+    public decimal MonthExpense { get; set; }
+    public decimal MonthNet => MonthIncome - MonthExpense;
 
     public bool HasFilter => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(Category) || Type.HasValue || From.HasValue || To.HasValue;
 }
@@ -1461,6 +2107,39 @@ public class EditBudgetViewModel
     public List<BudgetCategoryInput> Categories { get; set; } = new();
 }
 
+public class BudgetIndexViewModel
+{
+    public BudgetProgress Progress { get; set; } = null!;
+    public List<DashboardDailyPoint> DailySpending { get; set; } = new();
+    public double BudgetDeltaPct { get; set; }
+    public double SpentDeltaPct { get; set; }
+    public double RemainingDeltaPct { get; set; }
+    public string SmartInsight { get; set; } = "";
+    public bool InsightPositive { get; set; }
+
+    public decimal Budget => Progress.OverallLimit ?? Progress.TotalLimit;
+    public decimal Spent => Progress.TotalSpent;
+    public decimal Remaining => Budget - Spent;
+    public int UsedPct => Budget > 0 ? (int)Math.Min(100, (double)(Spent / Budget) * 100) : 0;
+}
+
+public record GoalRow(SavingsGoal Goal, decimal Saved, int Pct, decimal Monthly, string Status, string StatusCls, string Color);
+
+public class GoalsPageViewModel
+{
+    public List<GoalRow> Goals { get; set; } = new();
+    public string Sort { get; set; } = "progress";
+    public decimal TotalTarget { get; set; }
+    public decimal TotalSaved { get; set; }
+    public decimal MonthlyContribution { get; set; }
+    public int GoalCount { get; set; }
+    public string ProjectedCompletion { get; set; } = "—";
+    public List<MonthBar> Trend { get; set; } = new();
+    public List<GoalRow> Milestones { get; set; } = new();
+    public int OnTrackCount { get; set; }
+    public int SavedPct => TotalTarget > 0 ? (int)Math.Min(100, (double)(TotalSaved / TotalTarget) * 100) : 0;
+}
+
 public class CreateSavingsGoalViewModel
 {
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
@@ -1476,6 +2155,26 @@ public class EditSavingsGoalViewModel : CreateSavingsGoalViewModel
     public bool IsCompleted { get; set; }
 }
 
+public record BillRow(Bill Bill, string Status, string StatusCls, int DaysUntil, bool Paid, string Color, string Icon);
+public record BillDay(DateTime Day, List<Bill> Bills);
+
+public class BillsPageViewModel
+{
+    public List<BillRow> Bills { get; set; } = new();
+    public decimal DueThisMonth { get; set; }
+    public int DueCount { get; set; }
+    public decimal PaidThisMonth { get; set; }
+    public int PaidCount { get; set; }
+    public decimal Upcoming7 { get; set; }
+    public int Upcoming7Count { get; set; }
+    public decimal Overdue { get; set; }
+    public int OverdueCount { get; set; }
+    public List<BillDay> Week { get; set; } = new();
+    public DateTime WeekStart { get; set; }
+    public List<MonthBar> CashFlow { get; set; } = new();
+    public string Insight { get; set; } = "";
+}
+
 public class CreateBillViewModel
 {
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
@@ -1484,12 +2183,29 @@ public class CreateBillViewModel
     [Required, DataType(DataType.Date)] public DateTime NextDueDate { get; set; } = DateTime.Today;
     public BillRecurrence Recurrence { get; set; } = BillRecurrence.Monthly;
     [Range(0, 60)] public int ReminderDaysBefore { get; set; } = 3;
+    public bool AutoPay { get; set; }
 }
 
 public class EditBillViewModel : CreateBillViewModel
 {
     [Required] public Guid Id { get; set; }
     public bool IsActive { get; set; } = true;
+}
+
+public record DebtRow(Debt Debt, int PaidPct, DateTime NextDue, int DaysLeft, string Color, string Icon);
+
+public class DebtsPageViewModel
+{
+    public List<DebtRow> Debts { get; set; } = new();
+    public decimal TotalBalance { get; set; }
+    public decimal MonthlyRepayment { get; set; }
+    public int UtilizationPct { get; set; }
+    public int IncomeSharePct { get; set; }
+    public string Strategy { get; set; } = "avalanche";
+    public List<DebtRow> PayoffOrder { get; set; } = new();
+    public decimal InterestSaved { get; set; }
+    public List<DebtRow> UpcomingPayments { get; set; } = new();
+    public string Insight { get; set; } = "";
 }
 
 public class CreateDebtViewModel
@@ -1523,12 +2239,26 @@ public class EditAccountViewModel : CreateAccountViewModel
 
 public record AccountBalance(Account Account, decimal Balance);
 
+public record AccountSpend(string Name, decimal Amount);
+public record AccountActivity(string Title, string Sub, decimal Amount, bool Positive, DateTime When, string Icon);
+
 public class AccountsIndexViewModel
 {
     public List<AccountBalance> Accounts { get; set; } = new();
     public List<AccountTransfer> Transfers { get; set; } = new();
     public Dictionary<Guid, string> Names { get; set; } = new();
+    public decimal CashBalance { get; set; }
+    public int CashCount { get; set; }
+    public decimal CreditBalance { get; set; }
+    public int CreditCount { get; set; }
+    public decimal InvestedBalance { get; set; }
+    public int InvestedCount { get; set; }
+    public List<AccountSpend> SpendByAccount { get; set; } = new();
+    public List<AccountActivity> RecentActivity { get; set; } = new();
+
     public decimal TotalBalance => Accounts.Where(a => !a.Account.IsArchived).Sum(a => a.Balance);
+    public int ActiveCount => Accounts.Count(a => !a.Account.IsArchived);
+    public decimal TotalSpend => SpendByAccount.Sum(s => s.Amount);
 }
 
 public record MonthlyTotal(string Label, decimal Income, decimal Expense);

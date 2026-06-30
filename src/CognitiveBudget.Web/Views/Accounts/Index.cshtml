@@ -2,107 +2,209 @@
 @{
     ViewData["Title"] = "Accounts";
     string Money(decimal d) => d.ToString("C");
+    var sym = System.Globalization.NumberFormatInfo.CurrentInfo.CurrencySymbol;
+    var palette = new[] { "#25e07e", "#3b82f6", "#8b5cf6", "#f59e0b", "#06b6d4", "#ec4899", "#10b981", "#9aa3b2" };
     var active = Model.Accounts.Where(a => !a.Account.IsArchived).ToList();
-    string TypeIcon(AccountType t) => t switch {
-        AccountType.Cash => "bi-cash", AccountType.Savings => "bi-piggy-bank",
-        AccountType.CreditCard => "bi-credit-card", AccountType.MobileWallet => "bi-phone",
-        AccountType.Investment => "bi-graph-up-arrow", _ => "bi-bank" };
+    var spendColors = Enumerable.Range(0, Model.SpendByAccount.Count).Select(i => palette[i % palette.Length]).ToArray();
+    Func<AccountType, string> balLabel = t => t switch
+    {
+        AccountType.CreditCard => "Outstanding",
+        AccountType.Savings => "Available balance",
+        AccountType.Investment => "Market value",
+        AccountType.Cash => "Cash balance",
+        _ => "Current balance"
+    };
+    Func<AccountType, string> typeIcon = t => t switch
+    {
+        AccountType.Cash => "bi-cash", AccountType.Savings => "bi-piggy-bank", AccountType.CreditCard => "bi-credit-card",
+        AccountType.MobileWallet => "bi-phone", AccountType.Investment => "bi-graph-up-arrow", _ => "bi-bank"
+    };
 }
 
-<div class="page-header">
-    <h2><i class="bi bi-bank text-primary"></i> Accounts &amp; wallets</h2>
-    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add account</a>
+<div class="hero">
+    <div class="page-header">
+        <div>
+            <h2>Accounts</h2>
+            <p class="text-muted m-0">Manage all your accounts and track balances in one place.</p>
+        </div>
+        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add Account</a>
+    </div>
 </div>
 
-@if (!Model.Accounts.Any())
-{
-    <div class="card"><div class="empty-state">
-        <i class="bi bi-bank"></i>
-        <h5>No accounts yet</h5>
-        <p>Add your bank, cash, savings or credit accounts to track balances and transfers.</p>
-        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add your first account</a>
+<!-- KPI cards -->
+<div class="row row-cols-2 row-cols-xl-4 g-3 mb-4">
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Total Balance</div><div class="val">@Money(Model.TotalBalance)</div><div class="text-muted small">Across @Model.ActiveCount accounts</div></div>
+        <span class="chip-ico"><i class="bi bi-wallet2"></i></span></div>
     </div></div>
-}
-else
-{
-    <div class="card stat-card mb-3" style="max-width:340px;">
-        <span class="stat-label">Total balance (active accounts)</span>
-        <div class="stat-value @(Model.TotalBalance < 0 ? "text-danger" : "text-success")">@Money(Model.TotalBalance)</div>
-    </div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Cash Balance</div><div class="val">@Money(Model.CashBalance)</div><div class="text-muted small">In @Model.CashCount account@(Model.CashCount == 1 ? "" : "s")</div></div>
+        <span class="chip-ico"><i class="bi bi-cash-stack"></i></span></div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Credit Cards</div><div class="val">@Money(Model.CreditBalance)</div><div class="text-muted small">Across @Model.CreditCount account@(Model.CreditCount == 1 ? "" : "s")</div></div>
+        <span class="chip-ico violet"><i class="bi bi-credit-card-2-front"></i></span></div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Invested &amp; Savings</div><div class="val">@Money(Model.InvestedBalance)</div><div class="text-muted small">In @Model.InvestedCount account@(Model.InvestedCount == 1 ? "" : "s")</div></div>
+        <span class="chip-ico" style="color:#fbbf24;background:rgba(245,158,11,.14);box-shadow:inset 0 0 0 1px rgba(245,158,11,.3),0 0 22px -8px rgba(245,158,11,.4);"><i class="bi bi-graph-up-arrow"></i></span></div>
+    </div></div>
+</div>
 
-    <div class="row g-3 mb-4">
-        @foreach (var ab in Model.Accounts)
-        {
-            <div class="col-md-4">
-                <div class="card h-100 @(ab.Account.IsArchived ? "opacity-75" : "")"><div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <h6 class="card-title mb-1"><i class="bi @TypeIcon(ab.Account.AccountType)"></i> @ab.Account.Name</h6>
-                        <span class="badge bg-light text-dark border">@(((Enum)ab.Account.AccountType).Humanize())</span>
-                    </div>
-                    @if (ab.Account.IsArchived) { <span class="badge bg-secondary mb-1">Archived</span> }
-                    <div class="stat-value fs-4 @(ab.Balance < 0 ? "text-danger" : "")">@Money(ab.Balance)</div>
-                    <div class="small text-muted">opened with @Money(ab.Account.StartingBalance)</div>
-                    <div class="mt-2 text-end">
-                        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = ab.Account.Id })"><i class="bi bi-pencil"></i></a>
-                        <form asp-action="Delete" method="post" class="d-inline">
-                            <input type="hidden" name="id" value="@ab.Account.Id" />
-                            <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this account? Linked transactions are kept but unlinked.');"><i class="bi bi-trash"></i></button>
-                        </form>
-                    </div>
-                </div></div>
-            </div>
-        }
-    </div>
-
-    @if (active.Count >= 2)
-    {
-        <div class="card mb-4"><div class="card-body">
-            <h6 class="card-title"><i class="bi bi-arrow-left-right"></i> Transfer between accounts</h6>
-            <form asp-action="Transfer" method="post" class="row g-2 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label small mb-1">From</label>
-                    <select name="fromId" class="form-select form-select-sm" required>
-                        @foreach (var a in active) { <option value="@a.Account.Id">@a.Account.Name</option> }
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small mb-1">To</label>
-                    <select name="toId" class="form-select form-select-sm" required>
-                        @foreach (var a in active) { <option value="@a.Account.Id">@a.Account.Name</option> }
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small mb-1">Amount</label>
-                    <input name="amount" type="number" step="0.01" min="0.01" class="form-control form-control-sm" required />
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small mb-1">Date</label>
-                    <input name="date" type="date" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" class="form-control form-control-sm" />
-                </div>
-                <div class="col-md-2">
-                    <button class="btn btn-sm btn-primary w-100"><i class="bi bi-arrow-left-right"></i> Transfer</button>
-                </div>
-            </form>
-        </div></div>
-    }
-
-    @if (Model.Transfers.Any())
-    {
+<div class="dash-grid">
+    <!-- MAIN: account list -->
+    <div class="dash-col">
         <div class="card"><div class="card-body">
-            <h6 class="card-title"><i class="bi bi-clock-history"></i> Recent transfers</h6>
-            <table class="table table-sm mb-0">
-                <thead><tr><th scope="col">Date</th><th scope="col">From → To</th><th scope="col" class="text-end">Amount</th></tr></thead>
-                <tbody>
-                @foreach (var t in Model.Transfers)
-                {
-                    <tr>
-                        <td>@t.Date.ToString("dd MMM yyyy")</td>
-                        <td>@Model.Names.GetValueOrDefault(t.FromAccountId, "?") <i class="bi bi-arrow-right"></i> @Model.Names.GetValueOrDefault(t.ToAccountId, "?")</td>
-                        <td class="text-end">@Money(t.Amount)</td>
-                    </tr>
-                }
-                </tbody>
-            </table>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h6 class="card-title m-0"><i class="bi bi-bank"></i> Your Accounts</h6>
+                <div class="d-flex align-items-center gap-2">
+                    @if (active.Count >= 2)
+                    {
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#transferBox"><i class="bi bi-arrow-left-right"></i> Transfer</button>
+                    }
+                    <div class="btn-group btn-group-sm view-toggle" role="group">
+                        <button type="button" class="btn btn-outline-secondary active" id="viewList"><i class="bi bi-list-ul"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" id="viewGrid"><i class="bi bi-grid"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            @if (active.Count >= 2)
+            {
+                <div class="collapse mb-3" id="transferBox">
+                    <form asp-action="Transfer" method="post" class="row g-2 align-items-end p-2 rounded" style="background:rgba(255,255,255,.03);">
+                        <div class="col-md-3"><label class="form-label small mb-1">From</label>
+                            <select name="fromId" class="form-select form-select-sm" required>@foreach (var a in active) { <option value="@a.Account.Id">@a.Account.Name</option> }</select></div>
+                        <div class="col-md-3"><label class="form-label small mb-1">To</label>
+                            <select name="toId" class="form-select form-select-sm" required>@foreach (var a in active) { <option value="@a.Account.Id">@a.Account.Name</option> }</select></div>
+                        <div class="col-md-2"><label class="form-label small mb-1">Amount</label>
+                            <div class="input-group input-group-sm"><span class="input-group-text">@sym</span><input name="amount" type="number" step="0.01" min="0.01" class="form-control" required /></div></div>
+                        <div class="col-md-2"><label class="form-label small mb-1">Date</label>
+                            <input name="date" type="date" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" class="form-control form-control-sm" /></div>
+                        <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Transfer</button></div>
+                    </form>
+                </div>
+            }
+
+            @if (!Model.Accounts.Any())
+            {
+                <div class="empty-state"><i class="bi bi-bank"></i><h5>No accounts yet</h5><p>Add your bank, cash, savings or credit accounts.</p>
+                    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add your first account</a></div>
+            }
+            else
+            {
+                <div class="acct-list" id="acctList">
+                    @{ var idx = 0; }
+                    @foreach (var ab in Model.Accounts)
+                    {
+                        var col = palette[idx % palette.Length]; idx++;
+                        var a = ab.Account;
+                        var letter = string.IsNullOrEmpty(a.Name) ? "?" : a.Name.Substring(0, 1).ToUpperInvariant();
+                        <div class="acct-row d-flex align-items-center gap-3 p-3 rounded @(a.IsArchived ? "opacity-50" : "")"
+                             style="border:1px solid var(--line);background:var(--glass);">
+                            <span class="acct-avatar" style="width:2.6rem;height:2.6rem;border-radius:.75rem;display:grid;place-items:center;font-weight:800;color:@col;background:color-mix(in srgb,@col 16%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,@col 40%,transparent);">@letter</span>
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="fw-semibold text-truncate">@a.Name</span>
+                                    @if (idx == 1 && !a.IsArchived) { <span class="pill pill-green">Primary</span> }
+                                    @if (a.IsArchived) { <span class="pill pill-gray">Archived</span> }
+                                </div>
+                                <div class="text-muted small"><i class="bi @typeIcon(a.AccountType)"></i> @(((Enum)a.AccountType).Humanize())</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-bold @(ab.Balance < 0 ? "text-danger" : "")">@Money(ab.Balance)</div>
+                                <div class="text-muted small">@balLabel(a.AccountType)</div>
+                            </div>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary icon-action" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="@Url.Action("Edit", new { id = a.Id })"><i class="bi bi-pencil"></i> Edit</a></li>
+                                    <li>
+                                        <form asp-action="Delete" method="post" onsubmit="return confirm('Delete this account? Linked transactions are kept but unlinked.');">
+                                            <input type="hidden" name="id" value="@a.Id" />
+                                            <button class="dropdown-item text-danger"><i class="bi bi-trash"></i> Delete</button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <a class="d-block text-center mt-3 py-3 rounded text-decoration-none fw-semibold" href="@Url.Action("Create")"
+                   style="border:1px dashed var(--line);color:var(--g);"><i class="bi bi-plus-lg"></i> Add New Account</a>
+            }
         </div></div>
-    }
+    </div>
+
+    <!-- RAIL: spending by account + activity -->
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-pie-chart"></i> Spending by account</h6>
+            @if (Model.SpendByAccount.Any())
+            {
+                <div class="d-flex flex-column align-items-center">
+                    <div style="position:relative;width:170px;height:170px;">
+                        <canvas id="acctChart"></canvas>
+                        <div style="position:absolute;inset:0;display:grid;place-items:center;text-align:center;pointer-events:none;">
+                            <div><div class="text-muted small">Total</div><div class="fw-bold">@Money(Model.TotalSpend)</div></div>
+                        </div>
+                    </div>
+                    <div class="w-100 mt-3">
+                        @{ var si = 0; }
+                        @foreach (var s in Model.SpendByAccount)
+                        {
+                            var c = spendColors[si]; si++;
+                            var pc = Model.TotalSpend > 0 ? (int)Math.Round((double)(s.Amount / Model.TotalSpend) * 100) : 0;
+                            <div class="d-flex align-items-center justify-content-between py-1 small">
+                                <span><span class="d-inline-block rounded-circle me-2" style="width:.6rem;height:.6rem;background:@c;"></span>@s.Name</span>
+                                <span class="text-muted">@Money(s.Amount) (@pc%)</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <a class="btn btn-link p-0 mt-2 small" href="@Url.Action("Index","Reports")">View full report →</a>
+            }
+            else { <p class="text-muted small mb-0">No account-linked spending yet. Assign an account when adding a transaction.</p> }
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-clock-history"></i> Recent account activity</h6>
+            @if (Model.RecentActivity.Any())
+            {
+                @foreach (var a in Model.RecentActivity)
+                {
+                    <div class="d-flex align-items-center gap-3 py-2">
+                        <span class="d-grid place-items-center" style="width:2.2rem;height:2.2rem;border-radius:.6rem;background:var(--glass);border:1px solid var(--line);"><i class="bi @a.Icon"></i></span>
+                        <div class="flex-grow-1 min-w-0"><div class="small fw-semibold text-truncate">@a.Title</div><div class="text-muted" style="font-size:.78rem;">@a.Sub</div></div>
+                        <div class="text-end"><div class="small fw-semibold @(a.Positive ? "text-success" : "text-danger")">@(a.Positive ? "+" : "-")@a.Amount.ToString("C0")</div><div class="text-muted" style="font-size:.74rem;">@a.When.ToString("dd MMM")</div></div>
+                    </div>
+                }
+                <a class="btn btn-link p-0 mt-2 small" href="@Url.Action("Index","Transactions")">View all activity →</a>
+            }
+            else { <p class="text-muted small mb-0">No recent activity.</p> }
+        </div></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script>
+        @if (Model.SpendByAccount.Any())
+        {
+            <text>
+            new Chart(document.getElementById('acctChart'), {
+                type: 'doughnut',
+                data: { labels: @Html.Raw(Json.Serialize(Model.SpendByAccount.Select(s => s.Name))),
+                        datasets: [{ data: @Html.Raw(Json.Serialize(Model.SpendByAccount.Select(s => s.Amount))), backgroundColor: @Html.Raw(Json.Serialize(spendColors)), borderWidth: 0, hoverOffset: 6 }] },
+                options: { cutout: '70%', plugins: { legend: { display: false } } }
+            });
+            </text>
+        }
+        // grid / list toggle
+        var vl = document.getElementById('viewList'), vg = document.getElementById('viewGrid'), list = document.getElementById('acctList');
+        function setGrid(grid) { if (list) list.classList.toggle('grid', grid); if (vg) vg.classList.toggle('active', grid); if (vl) vl.classList.toggle('active', !grid); try { localStorage.setItem('cb-acct-view', grid ? 'grid' : 'list'); } catch (e) {} }
+        if (vg) vg.addEventListener('click', function () { setGrid(true); });
+        if (vl) vl.addEventListener('click', function () { setGrid(false); });
+        try { if (localStorage.getItem('cb-acct-view') === 'grid') setGrid(true); } catch (e) {}
+    </script>
 }

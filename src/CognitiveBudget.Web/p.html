@@ -1,80 +1,125 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login - CognitiveBudget</title>
+    <title>Login · CognitiveBudget</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" crossorigin="anonymous" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" crossorigin="anonymous" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
     <link rel="stylesheet" href="/css/site.css" />
+    <script>
+        // Apply saved theme before paint (avoids flash).
+        (function () { try { var t = localStorage.getItem('cb-theme'); if (t) document.documentElement.setAttribute('data-bs-theme', t); } catch (e) {} })();
+    </script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg cb-nav sticky-top">
-        <div class="container">
-            <a class="navbar-brand" href="/"><i class="bi bi-brain"></i> CognitiveBudget</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                </ul>
-                <ul class="navbar-nav align-items-lg-center">
-                        <li class="nav-item"><a class="nav-link" href="/Account/Login">Login</a></li>
-                        <li class="nav-item"><a class="btn btn-sm btn-primary ms-lg-2" href="/Account/Register">Get started</a></li>
-                </ul>
-            </div>
+    <nav class="public-nav">
+        <a class="brand" style="text-decoration:none;" href="/">
+            <span class="mark">C</span>
+            <span><span class="lo">Cognitive</span><span class="hi">Budget</span></span>
+        </a>
+        <div class="ms-auto d-flex gap-3 align-items-center">
+            <a class="text-decoration-none fw-semibold" style="color:var(--ink);" href="/Account/Login">Login</a>
+            <a class="btn btn-primary" href="/Account/Register">Get started <i class="bi bi-arrow-right"></i></a>
         </div>
     </nav>
+    <main>
+        <div class="public-wrap">
+            
+<div class="auth-split">
+    <div class="auth-marketing">
+        <h1>Understand your spending.<br><span style="color:var(--g);">Beat the impulse.</span></h1>
+        <p class="lead">CognitiveBudget maps your patterns, watches for the moments that matter, and nudges you with timely insights — so you stay in control.</p>
 
-    <div class="container mt-4">
-        
-<div class="auth-card">
-    <div class="card"><div class="card-body p-4">
-        <h3 class="text-center mb-1"><i class="bi bi-brain text-primary"></i> Welcome back</h3>
-        <p class="text-center text-muted mb-4">Sign in to your CognitiveBudget account.</p>
+        <div class="auth-feature"><span class="fi"><i class="bi bi-activity"></i></span>
+            <div><h6>Track with clarity</h6><p class="text-muted small mb-0">See where your money goes with beautiful insights and real-time updates.</p></div></div>
+        <div class="auth-feature"><span class="fi"><i class="bi bi-bell"></i></span>
+            <div><h6>Get nudged in time</h6><p class="text-muted small mb-0">Smart alerts help you avoid impulse spending and stay on track.</p></div></div>
+        <div class="auth-feature"><span class="fi"><i class="bi bi-shield-check"></i></span>
+            <div><h6>Stay in control</h6><p class="text-muted small mb-0">Set limits, build better habits, and reach your goals — consistently.</p></div></div>
+
+        <div class="trust-card d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-3">
+                <span class="fi"><i class="bi bi-shield-check"></i></span>
+                <div><div class="fw-bold">Your data is secure</div><p class="text-muted small mb-0">Bank-level security. We never share your data.</p></div>
+            </div>
+            <span class="pill pill-green"><i class="bi bi-lock"></i> Private by design</span>
+        </div>
+    </div>
+
+    <div class="auth-form-card">
+        <div class="text-center mb-4">
+            <span class="brand mark mx-auto d-inline-grid" style="width:3rem;height:3rem;font-size:1.4rem;">C</span>
+            <h2 class="fw-bold mt-3 mb-1">Welcome back</h2>
+            <p class="text-muted small mb-0">Sign in to your CognitiveBudget account.</p>
+        </div>
 
         <form method="post" action="/Account/Login">
             
             <div class="mb-3">
                 <label class="form-label" for="Email">Email</label>
-                <input class="form-control" autocomplete="username" type="email" data-val="true" data-val-email="The Email field is not a valid e-mail address." data-val-required="The Email field is required." id="Email" name="Email" value="" />
-                <span class="text-danger field-validation-valid" data-valmsg-for="Email" data-valmsg-replace="true"></span>
+                <input class="form-control" autocomplete="username" placeholder="you@example.com" type="email" data-val="true" data-val-email="The Email field is not a valid e-mail address." data-val-required="The Email field is required." id="Email" name="Email" value="" />
+                <span class="text-danger small field-validation-valid" data-valmsg-for="Email" data-valmsg-replace="true"></span>
             </div>
-            <div class="mb-3">
+            <div class="mb-2 pw-wrap">
                 <label class="form-label" for="Password">Password</label>
-                <input class="form-control" type="password" autocomplete="current-password" data-val="true" data-val-required="The Password field is required." id="Password" name="Password" />
-                <span class="text-danger field-validation-valid" data-valmsg-for="Password" data-valmsg-replace="true"></span>
+                <input class="form-control" type="password" autocomplete="current-password" placeholder="Enter your password" data-pw data-val="true" data-val-required="The Password field is required." id="Password" name="Password" />
+                <button type="button" class="pw-eye" data-pw-toggle><i class="bi bi-eye"></i></button>
+                <span class="text-danger small field-validation-valid" data-valmsg-for="Password" data-valmsg-replace="true"></span>
             </div>
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <div class="form-check m-0">
-                    <input class="form-check-input" type="checkbox" data-val="true" data-val-required="The RememberMe field is required." id="RememberMe" name="RememberMe" value="true" />
-                    <label class="form-check-label" for="RememberMe">RememberMe</label>
-                </div>
-                <a class="small" href="/Account/ForgotPassword">Forgot password?</a>
+                <div class="form-check m-0"><input class="form-check-input" type="checkbox" data-val="true" data-val-required="The RememberMe field is required." id="RememberMe" name="RememberMe" value="true" /><label class="form-check-label" for="RememberMe">RememberMe</label></div>
+                <a class="small" style="color:var(--g);" href="/Account/ForgotPassword">Forgot password?</a>
             </div>
-            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-box-arrow-in-right"></i> Login</button>
-        <input name="__RequestVerificationToken" type="hidden" value="CfDJ8PdzWB_y5-FKsRWGr5ioN1m7gnytGZz6vht7V1RlcikhmUkkUXbLMKDnbNM8ulaoreD8Bf3Pcc7rKGRUXeExaR_alGSugSU3lFs9jGy4P-jvWG_VP8wvrH9PU8fr7hYkWW51DGjlWlk-EzqloTUUWPY" /><input name="RememberMe" type="hidden" value="false" /></form>
-        <p class="text-center text-muted mt-3 mb-0 small">
-            No account? <a href="/Account/Register">Create one</a>
-        </p>
-    </div></div>
+            <button type="submit" class="btn btn-primary w-100 py-2"><i class="bi bi-box-arrow-in-right"></i> Log in</button>
+        <input name="__RequestVerificationToken" type="hidden" value="CfDJ8PdzWB_y5-FKsRWGr5ioN1m9XiByz1EBK_hfdwgfVl2moIaoV-sW2K1p9urj2MK4sDe-OJdpREEgHyYjRhdQw9QzazqwLy14i25VJbs3UR0-dTxJ0qdskX3nSCvUFdysb45cVJbwsMpcXfcAPKjm7Mw" /><input name="RememberMe" type="hidden" value="false" /></form>
+        <p class="text-center text-muted mt-3 mb-0 small">No account? <a href="/Account/Register" style="color:var(--g);">Create one</a></p>
+    </div>
 </div>
 
+<div class="text-center text-muted small mt-4"><i class="bi bi-shield-lock text-success me-1"></i> We respect your privacy. Your information is encrypted and never shared.</div>
 
 
-        <footer class="cb-footer">
-            CognitiveBudget — understand your spending, beat the impulse.
-        </footer>
-    </div>
+            <footer class="cb-footer">CognitiveBudget — understand your spending, beat the impulse.</footer>
+        </div>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script>
+        // Mobile sidebar toggle
+        var mt = document.getElementById('menuToggle');
+        if (mt) mt.addEventListener('click', function () { document.getElementById('appShell').classList.toggle('nav-open'); });
+        // Theme toggle
+        var tt = document.getElementById('themeToggle');
+        function syncThemeLabel() {
+            var dark = document.documentElement.getAttribute('data-bs-theme') !== 'light';
+            var lbl = document.getElementById('themeLabel'); if (lbl) lbl.textContent = dark ? 'Light mode' : 'Dark mode';
+        }
+        syncThemeLabel();
+        if (tt) tt.addEventListener('click', function () {
+            var dark = document.documentElement.getAttribute('data-bs-theme') !== 'light';
+            var next = dark ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-bs-theme', next);
+            try { localStorage.setItem('cb-theme', next); } catch (e) {}
+            syncThemeLabel();
+        });
+    </script>
     
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" integrity="sha512-..." crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js" integrity="sha512-..." crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate-unobtrusive/3.2.12/jquery.validate.unobtrusive.min.js" integrity="sha512-..." crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate-unobtrusive/3.2.12/jquery.validate.unobtrusive.min.js" integrity="sha512-..." crossorigin="anonymous"></script>    <script>
+        document.querySelectorAll('[data-pw-toggle]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var i = b.parentElement.querySelector('[data-pw]');
+                if (!i) return;
+                var show = i.type === 'password'; i.type = show ? 'text' : 'password';
+                b.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+            });
+        });
+    </script>
+
 </body>
 </html>

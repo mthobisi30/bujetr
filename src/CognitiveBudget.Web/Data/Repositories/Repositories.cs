@@ -11,7 +11,7 @@ public interface ITransactionRepository
 {
     Task<IEnumerable<Transaction>> GetByUserIdAsync(string userId, int page = 1, int pageSize = 50);
     Task<(IReadOnlyList<Transaction> Items, int Total)> GetFilteredAsync(
-        string userId, string? search, string? category, TransactionType? type, DateTime? from, DateTime? to, int page, int pageSize);
+        string userId, string? search, string? category, TransactionType? type, DateTime? from, DateTime? to, string? sort, int page, int pageSize);
     Task<IReadOnlyList<string>> GetCategoriesAsync(string userId);
     Task<Transaction?> GetByIdAsync(Guid id, string userId);
     Task<Transaction> CreateAsync(Transaction transaction);
@@ -105,7 +105,7 @@ public class TransactionRepository : ITransactionRepository
     }
 
     public async Task<(IReadOnlyList<Transaction> Items, int Total)> GetFilteredAsync(
-        string userId, string? search, string? category, TransactionType? type, DateTime? from, DateTime? to, int page, int pageSize)
+        string userId, string? search, string? category, TransactionType? type, DateTime? from, DateTime? to, string? sort, int page, int pageSize)
     {
         var query = _context.Transactions.Where(t => t.UserId == userId);
 
@@ -126,8 +126,14 @@ public class TransactionRepository : ITransactionRepository
             query = query.Where(t => t.TransactionDate <= to.Value);
 
         var total = await query.CountAsync();
+        query = sort switch
+        {
+            "oldest" => query.OrderBy(t => t.TransactionDate),
+            "high"   => query.OrderByDescending(t => t.Amount),
+            "low"    => query.OrderBy(t => t.Amount),
+            _        => query.OrderByDescending(t => t.TransactionDate)
+        };
         var items = await query
-            .OrderByDescending(t => t.TransactionDate)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
@@ -624,6 +630,8 @@ public interface IAccountRepository
     Task<IReadOnlyDictionary<Guid, decimal>> GetNetMovementAsync(string userId);
     Task<bool> CreateTransferAsync(string userId, Guid fromId, Guid toId, decimal amount, string? note, DateTime date);
     Task<IReadOnlyList<AccountTransfer>> GetTransfersAsync(string userId, int take = 20);
+    Task<IReadOnlyDictionary<Guid, decimal>> GetSpendByAccountAsync(string userId, DateTime from, DateTime to);
+    Task<IReadOnlyList<Transaction>> GetRecentLinkedTransactionsAsync(string userId, int take = 8);
 }
 
 public class AccountRepository : IAccountRepository
@@ -710,6 +718,24 @@ public class AccountRepository : IAccountRepository
             .OrderByDescending(x => x.Date)
             .Take(take)
             .ToListAsync();
+
+    public async Task<IReadOnlyDictionary<Guid, decimal>> GetSpendByAccountAsync(string userId, DateTime from, DateTime to)
+    {
+        var rows = await _context.Transactions
+            .Where(t => t.UserId == userId && t.AccountId != null && t.Type == TransactionType.Expense
+                        && t.TransactionDate >= from && t.TransactionDate <= to)
+            .GroupBy(t => t.AccountId!.Value)
+            .Select(g => new { Id = g.Key, Sum = g.Sum(t => t.Amount) })
+            .ToListAsync();
+        return rows.ToDictionary(r => r.Id, r => r.Sum);
+    }
+
+    public async Task<IReadOnlyList<Transaction>> GetRecentLinkedTransactionsAsync(string userId, int take = 8)
+        => await _context.Transactions
+            .Where(t => t.UserId == userId && t.AccountId != null)
+            .OrderByDescending(t => t.TransactionDate)
+            .Take(take)
+            .ToListAsync();
 }
 
 // ─── Shared budgets ───────────────────────────────────────────────────────────
@@ -741,6 +767,7 @@ public class SharedBudgetRepository : ISharedBudgetRepository
     public async Task<IReadOnlyList<SharedBudget>> GetGroupsForUserAsync(string userId)
         => await _context.SharedBudgets
             .Include(s => s.Members)
+            .Include(s => s.Expenses)
             .Where(s => s.Members.Any(m => m.UserId == userId && m.Status == InviteStatus.Active))
             .OrderBy(s => s.Name)
             .ToListAsync();

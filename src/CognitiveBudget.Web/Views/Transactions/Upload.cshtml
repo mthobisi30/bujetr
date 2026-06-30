@@ -1,31 +1,36 @@
 @{
     ViewData["Title"] = "Import transactions";
 }
+<div class="form-card">
+  <div class="card"><div class="card-body p-4 p-md-5">
+    <div class="form-head">
+      <span class="fh-ico"><i class="bi bi-upload"></i></span>
+      <div><h3>Import transactions</h3><p class="text-muted small mb-0">Bulk-load transactions from a CSV file.</p></div>
+    </div>
 
-<div class="page-header">
-    <h2><i class="bi bi-upload text-primary"></i> Import transactions</h2>
-    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-arrow-left"></i> Back</a>
-</div>
-
-<div class="card"><div class="card-body">
-    <div asp-validation-summary="All" class="text-danger"></div>
+    <div asp-validation-summary="All" class="text-danger mb-3"></div>
 
     <p>Upload a comma-separated file. Each row should be:</p>
     <pre class="bg-light border rounded p-2 small mb-3">Date,Amount,Description,Category[,Merchant]
 2025-06-01,12.50,Flat white,Coffee,Starbucks
 2025-06-02,"45.00","Weekly shop, big",Groceries</pre>
     <ul class="small text-muted">
-        <li>Fields with commas can be wrapped in double quotes.</li>
-        <li>Rows that can't be parsed (bad date/amount) are skipped and reported back.</li>
-        <li>Maximum file size: 5&nbsp;MB · up to 10,000 rows per import.</li>
+      <li>Fields with commas can be wrapped in double quotes.</li>
+      <li>Rows that can't be parsed (bad date/amount) are skipped and reported back.</li>
+      <li>Maximum file size: 5&nbsp;MB · up to 10,000 rows per import.</li>
     </ul>
 
     <form asp-action="Upload" method="post" enctype="multipart/form-data">
-        <div class="mb-3">
-            <label for="csvFile" class="form-label">CSV file</label>
-            <input id="csvFile" type="file" name="csv" accept=".csv,text/csv" class="form-control" required />
+      <div class="row g-3">
+        <div class="col-12">
+          <label for="csvFile" class="form-label">CSV file</label>
+          <input id="csvFile" type="file" name="csv" accept=".csv,text/csv" class="form-control" required />
         </div>
-        <button type="submit" class="btn btn-primary"><i class="bi bi-cloud-upload"></i> Upload</button>
-        <a class="btn btn-link" href="@Url.Action("Index")">Cancel</a>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-cloud-upload"></i> Import</button>
+        <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Cancel</a>
+      </div>
     </form>
-</div></div>
+  </div></div>
+</div>

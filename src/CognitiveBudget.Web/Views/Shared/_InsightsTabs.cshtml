@@ -1,0 +1,8 @@
+@model string
+<div class="insights-tabs">
+    <a class="@(Model == "overview" ? "active" : "")" href="@Url.Action("Index", "Insights")">Overview</a>
+    <a class="@(Model == "reports" ? "active" : "")" href="@Url.Action("Index", "Reports")">Reports</a>
+    <a class="@(Model == "calendar" ? "active" : "")" href="@Url.Action("Index", "Calendar")">Calendar</a>
+    <a class="@(Model == "triggers" ? "active" : "")" href="@Url.Action("Index", "SpendingTriggers")">Triggers</a>
+    <a class="@(Model == "rules" ? "active" : "")" href="@Url.Action("Index", "CommitmentDevices")">Rules</a>
+</div>

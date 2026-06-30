@@ -1,113 +1,152 @@
 @{
     var currentController = ViewContext.RouteData.Values["controller"] as string;
-    string NavActive(string controller) => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    string NavActive(string c) => string.Equals(currentController, c, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    var authed = User.Identity?.IsAuthenticated == true;
+    var displayName = User.Identity?.Name ?? "";
+    var initial = string.IsNullOrEmpty(displayName) ? "U" : displayName.Substring(0, 1).ToUpperInvariant();
 }
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - CognitiveBudget</title>
+    <title>@ViewData["Title"] · CognitiveBudget</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" crossorigin="anonymous" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" crossorigin="anonymous" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
     <link rel="stylesheet" href="/css/site.css" />
+    <script>
+        // Apply saved theme before paint (avoids flash).
+        (function () { try { var t = localStorage.getItem('cb-theme'); if (t) document.documentElement.setAttribute('data-bs-theme', t); } catch (e) {} })();
+    </script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg cb-nav sticky-top">
-        <div class="container">
-            <a class="navbar-brand" href="@Url.Action("Index", "Home")"><i class="bi bi-brain"></i> CognitiveBudget</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    @if (User.Identity?.IsAuthenticated == true)
-                    {
-                        <li class="nav-item"><a class="nav-link @NavActive("Dashboard")" aria-current="@(NavActive("Dashboard") == "active" ? "page" : null)" href="@Url.Action("Index","Dashboard")"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
-                        <li class="nav-item"><a class="nav-link @NavActive("Transactions")" aria-current="@(NavActive("Transactions") == "active" ? "page" : null)" href="@Url.Action("Index","Transactions")"><i class="bi bi-list-ul"></i> Transactions</a></li>
-                        <li class="nav-item"><a class="nav-link @NavActive("Accounts")" aria-current="@(NavActive("Accounts") == "active" ? "page" : null)" href="@Url.Action("Index","Accounts")"><i class="bi bi-bank"></i> Accounts</a></li>
-                        <li class="nav-item"><a class="nav-link @NavActive("Budgets")" aria-current="@(NavActive("Budgets") == "active" ? "page" : null)" href="@Url.Action("Index","Budgets")"><i class="bi bi-wallet2"></i> Budget</a></li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle @((NavActive("SavingsGoals") + NavActive("Bills") + NavActive("Debts") + NavActive("SharedBudgets")).Contains("active") ? "active" : "")" href="#" role="button" data-bs-toggle="dropdown"><i class="bi bi-clipboard-check"></i> Planning</a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item @NavActive("SavingsGoals")" href="@Url.Action("Index","SavingsGoals")"><i class="bi bi-piggy-bank"></i> Savings goals</a></li>
-                                <li><a class="dropdown-item @NavActive("Bills")" href="@Url.Action("Index","Bills")"><i class="bi bi-receipt"></i> Bills</a></li>
-                                <li><a class="dropdown-item @NavActive("Debts")" href="@Url.Action("Index","Debts")"><i class="bi bi-credit-card-2-front"></i> Debt</a></li>
-                                <li><a class="dropdown-item @NavActive("SharedBudgets")" href="@Url.Action("Index","SharedBudgets")"><i class="bi bi-people"></i> Shared budgets</a></li>
-                            </ul>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle @((NavActive("Reports") + NavActive("Calendar") + NavActive("SpendingTriggers") + NavActive("CommitmentDevices")).Contains("active") ? "active" : "")" href="#" role="button" data-bs-toggle="dropdown"><i class="bi bi-graph-up"></i> Insights</a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item @NavActive("Reports")" href="@Url.Action("Index","Reports")"><i class="bi bi-bar-chart-line"></i> Reports</a></li>
-                                <li><a class="dropdown-item @NavActive("Calendar")" href="@Url.Action("Index","Calendar")"><i class="bi bi-calendar3"></i> Calendar</a></li>
-                                <li><a class="dropdown-item @NavActive("SpendingTriggers")" href="@Url.Action("Index","SpendingTriggers")"><i class="bi bi-lightning-charge"></i> Triggers</a></li>
-                                <li><a class="dropdown-item @NavActive("CommitmentDevices")" href="@Url.Action("Index","CommitmentDevices")"><i class="bi bi-shield-check"></i> Rules</a></li>
-                            </ul>
-                        </li>
-                    }
-                </ul>
-                <ul class="navbar-nav align-items-lg-center">
-                    @if (User.Identity?.IsAuthenticated == true)
-                    {
-                        @await Component.InvokeAsync("Alerts")
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-person-circle"></i> @User.Identity.Name
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                @if (User.IsInRole("Admin"))
-                                {
-                                    <li><a class="dropdown-item @NavActive("Admin")" href="@Url.Action("Index","Admin")"><i class="bi bi-gear-wide-connected"></i> Admin</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                }
-                                <li><a class="dropdown-item" href="@Url.Action("ChangePassword","Account")"><i class="bi bi-shield-lock"></i> Change password</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <form method="post" asp-controller="Account" asp-action="Logout">
-                                        <button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right"></i> Logout</button>
-                                    </form>
-                                </li>
-                            </ul>
-                        </li>
-                    }
-                    else
-                    {
-                        <li class="nav-item"><a class="nav-link" href="@Url.Action("Login","Account")">Login</a></li>
-                        <li class="nav-item"><a class="btn btn-sm btn-primary ms-lg-2" href="@Url.Action("Register","Account")">Get started</a></li>
-                    }
-                </ul>
+@if (authed)
+{
+    <div class="app-shell" id="appShell">
+        <aside class="sidebar">
+            <div class="brand">
+                <span class="mark">C</span>
+                <span><span class="lo">Cognitive</span><span class="hi">Budget</span></span>
             </div>
+
+            <a class="nav-pill @NavActive("Dashboard")" href="@Url.Action("Index","Dashboard")"><i class="bi bi-grid-1x2"></i> Dashboard</a>
+            <a class="nav-pill @NavActive("Transactions")" href="@Url.Action("Index","Transactions")"><i class="bi bi-arrow-left-right"></i> Transactions</a>
+            <a class="nav-pill @NavActive("Accounts")" href="@Url.Action("Index","Accounts")"><i class="bi bi-bank"></i> Accounts</a>
+            <a class="nav-pill @NavActive("Budgets")" href="@Url.Action("Index","Budgets")"><i class="bi bi-wallet2"></i> Budget</a>
+
+            <div class="nav-section">Planning</div>
+            <a class="nav-pill @NavActive("Planning")" href="@Url.Action("Index","Planning")"><i class="bi bi-clipboard-check"></i> Planning</a>
+            <a class="nav-pill @NavActive("SavingsGoals")" href="@Url.Action("Index","SavingsGoals")"><i class="bi bi-piggy-bank"></i> Savings goals</a>
+            <a class="nav-pill @NavActive("Bills")" href="@Url.Action("Index","Bills")"><i class="bi bi-receipt"></i> Bills</a>
+            <a class="nav-pill @NavActive("Debts")" href="@Url.Action("Index","Debts")"><i class="bi bi-credit-card-2-front"></i> Debt</a>
+            <a class="nav-pill @NavActive("SharedBudgets")" href="@Url.Action("Index","SharedBudgets")"><i class="bi bi-people"></i> Shared budgets</a>
+
+            <div class="nav-section">Insights</div>
+            <a class="nav-pill @NavActive("Insights")" href="@Url.Action("Index","Insights")"><i class="bi bi-graph-up-arrow"></i> Insights</a>
+            <a class="nav-pill @NavActive("Reports")" href="@Url.Action("Index","Reports")"><i class="bi bi-bar-chart-line"></i> Reports</a>
+            <a class="nav-pill @NavActive("Calendar")" href="@Url.Action("Index","Calendar")"><i class="bi bi-calendar3"></i> Calendar</a>
+            <a class="nav-pill @NavActive("SpendingTriggers")" href="@Url.Action("Index","SpendingTriggers")"><i class="bi bi-lightning-charge"></i> Triggers</a>
+            <a class="nav-pill @NavActive("CommitmentDevices")" href="@Url.Action("Index","CommitmentDevices")"><i class="bi bi-shield-check"></i> Rules</a>
+
+            <div class="sidebar-spacer"></div>
+
+            <div class="promo">
+                <i class="bi bi-gem gem"></i>
+                <h6>Go Premium</h6>
+                <p>Unlock advanced insights and unlimited planning.</p>
+                <a class="btn btn-primary btn-sm w-100" href="#">Upgrade Now</a>
+            </div>
+            <div class="side-tool" id="themeToggle"><span><i class="bi bi-moon-stars"></i> <span id="themeLabel">Light mode</span></span><i class="bi bi-chevron-right"></i></div>
+            @if (User.IsInRole("Admin"))
+            {
+                <a class="nav-pill @NavActive("Admin")" href="@Url.Action("Index","Admin")"><i class="bi bi-gear-wide-connected"></i> Admin</a>
+            }
+            <a class="nav-pill" href="@Url.Action("ChangePassword","Account")"><i class="bi bi-life-preserver"></i> Help &amp; Support</a>
+        </aside>
+
+        <div class="app-main">
+            <header class="topbar">
+                <button class="icon-btn menu-toggle" id="menuToggle" aria-label="Menu"><i class="bi bi-list"></i></button>
+                <div class="search">
+                    <i class="bi bi-search"></i>
+                    <input type="text" placeholder="Search anything..." aria-label="Search" />
+                    <span class="kbd">⌘K</span>
+                </div>
+                <span class="top-chip d-none d-md-inline-flex"><i class="bi bi-calendar3"></i> @DateTime.UtcNow.ToString("MMM yyyy") <i class="bi bi-chevron-down small"></i></span>
+                <ul class="navbar-nav flex-row align-items-center" style="gap:.4rem;">
+                    @await Component.InvokeAsync("Alerts")
+                </ul>
+                <div class="dropdown">
+                    <a class="top-chip" href="#" role="button" data-bs-toggle="dropdown">
+                        <span class="avatar" style="display:grid;place-items:center;background:var(--g-soft);color:var(--g);font-weight:800;">@initial</span>
+                        <span class="d-none d-sm-inline">@displayName</span> <i class="bi bi-chevron-down small"></i>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        @if (User.IsInRole("Admin")) { <li><a class="dropdown-item" href="@Url.Action("Index","Admin")"><i class="bi bi-gear-wide-connected"></i> Admin</a></li> }
+                        <li><a class="dropdown-item" href="@Url.Action("ChangePassword","Account")"><i class="bi bi-shield-lock"></i> Change password</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><form method="post" asp-controller="Account" asp-action="Logout"><button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right"></i> Logout</button></form></li>
+                    </ul>
+                </div>
+            </header>
+
+            <main class="content">
+                <partial name="_Toasts" />
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+}
+else
+{
+    <nav class="public-nav">
+        <a class="brand" style="text-decoration:none;" href="@Url.Action("Index","Home")">
+            <span class="mark">C</span>
+            <span><span class="lo">Cognitive</span><span class="hi">Budget</span></span>
+        </a>
+        <div class="ms-auto d-flex gap-3 align-items-center">
+            <a class="text-decoration-none fw-semibold" style="color:var(--ink);" href="@Url.Action("Login","Account")">Login</a>
+            <a class="btn btn-primary" href="@Url.Action("Register","Account")">Get started <i class="bi bi-arrow-right"></i></a>
         </div>
     </nav>
-
-    <div class="container mt-4">
-        @if (TempData["Success"] != null)
-        {
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle-fill me-1"></i> @TempData["Success"]
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        }
-        @if (TempData["Error"] != null)
-        {
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-1"></i> @TempData["Error"]
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        }
-        @RenderBody()
-
-        <footer class="cb-footer">
-            CognitiveBudget — understand your spending, beat the impulse.
-        </footer>
-    </div>
+    <main>
+        <partial name="_Toasts" />
+        <div class="public-wrap">
+            @RenderBody()
+            <footer class="cb-footer">CognitiveBudget — understand your spending, beat the impulse.</footer>
+        </div>
+    </main>
+}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script>
+        // Mobile sidebar toggle
+        var mt = document.getElementById('menuToggle');
+        if (mt) mt.addEventListener('click', function () { document.getElementById('appShell').classList.toggle('nav-open'); });
+        // Toasts: dismiss + auto-hide
+        document.querySelectorAll('#toastStack .cb-toast').forEach(function (t) {
+            var close = function () { t.classList.add('cb-toast-out'); setTimeout(function () { t.remove(); }, 300); };
+            var x = t.querySelector('.cb-toast-x'); if (x) x.addEventListener('click', close);
+            setTimeout(close, 6000);
+        });
+        // Theme toggle
+        var tt = document.getElementById('themeToggle');
+        function syncThemeLabel() {
+            var dark = document.documentElement.getAttribute('data-bs-theme') !== 'light';
+            var lbl = document.getElementById('themeLabel'); if (lbl) lbl.textContent = dark ? 'Light mode' : 'Dark mode';
+        }
+        syncThemeLabel();
+        if (tt) tt.addEventListener('click', function () {
+            var dark = document.documentElement.getAttribute('data-bs-theme') !== 'light';
+            var next = dark ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-bs-theme', next);
+            try { localStorage.setItem('cb-theme', next); } catch (e) {}
+            syncThemeLabel();
+        });
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

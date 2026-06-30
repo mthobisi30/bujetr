@@ -1,70 +1,143 @@
-@model IEnumerable<Debt>
+@model DebtsPageViewModel
 @{
     ViewData["Title"] = "Debts";
     string Money(decimal d) => d.ToString("C0");
-    var totalOwed = Model.Sum(d => d.CurrentBalance);
+    var today = DateTime.UtcNow.Date;
+    var maxBal = Model.PayoffOrder.Count > 0 ? Math.Max(1m, Model.PayoffOrder.Max(r => r.Debt.CurrentBalance)) : 1m;
 }
 
-<div class="page-header">
-    <h2><i class="bi bi-credit-card-2-front text-primary"></i> Debt</h2>
-    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add debt</a>
+<div class="hero">
+    <div class="page-header">
+        <div><h2>Planning</h2><p class="text-muted m-0">Set goals, stay ahead of bills, and eliminate debt with a plan that works.</p></div>
+        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add Debt</a>
+    </div>
+    <partial name="_PlanningTabs" model="@("debts")" />
 </div>
 
-@if (!Model.Any())
-{
-    <div class="card"><div class="empty-state">
-        <i class="bi bi-credit-card"></i>
-        <h5>No debts tracked</h5>
-        <p>Add loans, credit cards or accounts to track balances and pay them down.</p>
-        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add a debt</a>
-    </div></div>
-}
-else
-{
-    <div class="card stat-card mb-3" style="max-width:320px;">
-        <span class="stat-label">Total outstanding</span>
-        <div class="stat-value text-danger">@Money(totalOwed)</div>
-    </div>
-    <div class="row g-3">
-    @foreach (var d in Model)
-    {
-        var paid = d.OriginalBalance - d.CurrentBalance;
-        var pct = d.OriginalBalance > 0 ? (int)Math.Min(100, Math.Max(0, (double)(paid / d.OriginalBalance) * 100)) : 0;
-        var cleared = d.CurrentBalance <= 0;
-        <div class="col-md-6">
-            <div class="card h-100 @(cleared ? "border-success" : "")"><div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <h6 class="card-title mb-1"><i class="bi bi-cash-stack text-danger"></i> @d.Name</h6>
-                    <span class="badge bg-light text-dark border">@(((Enum)d.DebtType).Humanize())</span>
-                </div>
-                <div class="d-flex justify-content-between"><span class="text-muted small">Paid @Money(paid) of @Money(d.OriginalBalance)</span><span class="small fw-semibold">@pct%</span></div>
-                <div class="progress my-1" role="progressbar" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar @(cleared ? "bg-success" : "bg-info")" style="width:@pct%"></div>
-                </div>
-                <div class="small text-muted">
-                    Balance: <span class="fw-semibold @(cleared ? "text-success" : "text-danger")">@Money(d.CurrentBalance)</span>
-                    @if (d.InterestRate > 0) { <text> · @d.InterestRate.ToString("0.##")% APR</text> }
-                    @if (d.MinimumPayment > 0) { <text> · min @Money(d.MinimumPayment)</text> }
-                    @if (d.DueDayOfMonth.HasValue) { <text> · due day @d.DueDayOfMonth</text> }
-                </div>
+@if (TempData["Success"] != null) { <div class="alert alert-success mt-3">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="alert alert-danger mt-3">@TempData["Error"]</div> }
 
-                @if (!cleared)
-                {
-                    <form asp-action="AddPayment" method="post" class="row g-1 mt-2">
-                        <input type="hidden" name="id" value="@d.Id" />
-                        <div class="col"><input name="amount" type="number" step="0.01" min="0" class="form-control form-control-sm" placeholder="Payment amount" /></div>
-                        <div class="col-auto"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-coin"></i> Pay</button></div>
-                    </form>
-                }
-                <div class="mt-2 text-end">
-                    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = d.Id })"><i class="bi bi-pencil"></i></a>
-                    <form asp-action="Delete" method="post" class="d-inline">
-                        <input type="hidden" name="id" value="@d.Id" />
-                        <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this debt?');"><i class="bi bi-trash"></i></button>
-                    </form>
-                </div>
-            </div></div>
+<!-- KPIs -->
+<div class="row row-cols-1 row-cols-md-3 g-3 my-1">
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Total Debt Balance</div><div class="val @(Model.TotalBalance > 0 ? "text-danger" : "")">@Money(Model.TotalBalance)</div><div class="text-muted small">Across @Model.Debts.Count account@(Model.Debts.Count == 1 ? "" : "s")</div></div><span class="chip-ico red"><i class="bi bi-wallet2"></i></span></div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex justify-content-between"><div><div class="lbl">Monthly Repayment</div><div class="val">@Money(Model.MonthlyRepayment)</div><div class="text-muted small">@Model.IncomeSharePct% of monthly income</div></div><span class="chip-ico"><i class="bi bi-credit-card"></i></span></div>
+    </div></div>
+    <div class="col"><div class="card kpi h-100">
+        <div class="d-flex align-items-center gap-3">
+            <div class="ring" style="--p:@Model.UtilizationPct;width:74px;height:74px;flex:0 0 auto;"><span>@Model.UtilizationPct%</span></div>
+            <div><div class="lbl">Utilization</div><div class="val" style="font-size:1.5rem;">@Model.UtilizationPct%</div><div class="small @(Model.UtilizationPct < 50 ? "text-success" : "text-warning")">@(Model.UtilizationPct < 50 ? "Good · keep it under 50%" : "High · aim under 50%")</div></div>
         </div>
-    }
+    </div></div>
+</div>
+
+<div class="dash-grid">
+    <div class="dash-col">
+        <div class="card"><div class="card-body p-0">
+            <div class="d-flex justify-content-between align-items-center p-3 pb-2"><h6 class="card-title m-0"><i class="bi bi-bank"></i> Debt Accounts</h6></div>
+            @if (!Model.Debts.Any())
+            {
+                <div class="empty-state"><i class="bi bi-emoji-smile"></i><h5>You're debt free</h5><p>No outstanding debts to track. Add one if you'd like to plan a payoff.</p>
+                    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add a debt</a></div>
+            }
+            else
+            {
+                <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Debt</th><th>Balance</th><th>APR</th><th>Min. Payment</th><th>Next Due</th><th style="min-width:170px;">Progress to Payoff</th><th class="text-end">Action</th></tr></thead>
+                    <tbody>
+                    @foreach (var r in Model.Debts)
+                    {
+                        <tr>
+                            <td><div class="d-flex align-items-center gap-2">
+                                <span style="width:2.2rem;height:2.2rem;border-radius:.6rem;display:grid;place-items:center;color:@r.Color;background:color-mix(in srgb,@r.Color 16%,transparent);"><i class="bi @r.Icon"></i></span>
+                                <div><div class="fw-semibold">@r.Debt.Name</div><div class="text-muted" style="font-size:.74rem;">@(((Enum)r.Debt.DebtType).Humanize())</div></div></div></td>
+                            <td class="fw-semibold text-danger">@r.Debt.CurrentBalance.ToString("C0")</td>
+                            <td>@r.Debt.InterestRate.ToString("0.##")%</td>
+                            <td>@r.Debt.MinimumPayment.ToString("C0")</td>
+                            <td class="small text-nowrap">@r.NextDue.ToString("dd MMM yyyy")<br><span class="@(r.DaysLeft <= 7 ? "text-danger" : "text-muted")" style="font-size:.72rem;">@(r.DaysLeft <= 0 ? "due now" : $"{r.DaysLeft} days left")</span></td>
+                            <td>
+                                <div class="d-flex justify-content-between small"><span class="text-muted">@r.Debt.CurrentBalance.ToString("C0") left</span><span class="fw-semibold">@r.PaidPct% paid</span></div>
+                                <div class="progress mt-1"><div class="progress-bar" style="width:@r.PaidPct%;background:@r.Color;"></div></div>
+                            </td>
+                            <td class="text-end text-nowrap">
+                                <button class="btn btn-sm btn-outline-success icon-action" data-bs-toggle="modal" data-bs-target="#p-@r.Debt.Id" title="Add payment"><i class="bi bi-cash-coin"></i></button>
+                                <a class="btn btn-sm btn-outline-secondary icon-action" href="@Url.Action("Edit", new { id = r.Debt.Id })" title="Edit"><i class="bi bi-pencil"></i></a>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table></div>
+                <a class="d-block text-center my-3 mx-3 py-3 rounded text-decoration-none fw-semibold" href="@Url.Action("Create")" style="border:1px dashed var(--line);color:var(--g);"><i class="bi bi-plus-lg"></i> Add Debt Account</a>
+            }
+        </div></div>
     </div>
+
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-1"><h6 class="card-title m-0"><i class="bi bi-diagram-3"></i> Repayment Strategy</h6><span class="pill pill-green">Recommended</span></div>
+            <div class="btn-group btn-group-sm view-toggle w-100 my-2" role="group">
+                <a class="btn btn-outline-secondary @(Model.Strategy == "snowball" ? "active" : "")" href="@Url.Action("Index", new { strategy = "snowball" })">Snowball</a>
+                <a class="btn btn-outline-secondary @(Model.Strategy == "avalanche" ? "active" : "")" href="@Url.Action("Index", new { strategy = "avalanche" })">Avalanche</a>
+            </div>
+            <div class="text-muted small mb-2">@(Model.Strategy == "snowball" ? "Clear smallest balances first for quick wins." : "Target the highest interest first to save the most.")</div>
+            @{ var rank = 0; }
+            @foreach (var r in Model.PayoffOrder)
+            {
+                rank++;
+                var w = (int)Math.Round((double)(r.Debt.CurrentBalance / maxBal) * 100);
+                <div class="d-flex align-items-center gap-2 py-1">
+                    <span class="d-grid place-items-center fw-bold" style="width:1.5rem;height:1.5rem;border-radius:50%;background:color-mix(in srgb,@r.Color 18%,transparent);color:@r.Color;font-size:.74rem;flex:0 0 auto;">@rank</span>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="d-flex justify-content-between small"><span class="text-truncate">@r.Debt.Name</span><span class="text-muted">@r.Debt.InterestRate.ToString("0.##")%</span></div>
+                        <div class="progress mt-1" style="height:.35rem;"><div class="progress-bar" style="width:@w%;background:@r.Color;"></div></div>
+                    </div>
+                    <span class="small text-muted text-nowrap">@r.Debt.CurrentBalance.ToString("C0")</span>
+                </div>
+            }
+            @if (Model.InterestSaved > 0)
+            {
+                <p class="text-muted small mt-2 mb-0">Following this strategy could save you <span class="text-success fw-semibold">@Money(Model.InterestSaved)</span> in interest.</p>
+            }
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="card-title m-0"><i class="bi bi-calendar-event"></i> Upcoming Payments</h6><span class="pill pill-amber">@Model.UpcomingPayments.Count</span></div>
+            @foreach (var r in Model.UpcomingPayments)
+            {
+                <div class="d-flex align-items-center gap-3 py-2">
+                    <span style="width:2.1rem;height:2.1rem;border-radius:.6rem;display:grid;place-items:center;color:@r.Color;background:color-mix(in srgb,@r.Color 16%,transparent);"><i class="bi @r.Icon"></i></span>
+                    <div class="flex-grow-1 min-w-0"><div class="small fw-semibold text-truncate">@r.Debt.Name</div></div>
+                    <div class="text-end"><div class="small fw-semibold">@r.Debt.MinimumPayment.ToString("C2")</div><div class="@(r.DaysLeft <= 3 ? "text-danger" : "text-muted")" style="font-size:.72rem;">@(r.DaysLeft <= 0 ? "due now" : r.DaysLeft == 1 ? "due tomorrow" : $"in {r.DaysLeft} days")</div></div>
+                </div>
+            }
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title"><i class="bi bi-stars"></i> Smart Insight</h6>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span style="font-size:1.8rem;color:var(--g);filter:drop-shadow(0 0 14px var(--g-glow));"><i class="bi bi-lightbulb-fill"></i></span>
+                <p class="small mb-0">@Model.Insight</p>
+            </div>
+        </div></div>
+    </div>
+</div>
+
+@foreach (var r in Model.Debts)
+{
+    <div class="modal fade" id="p-@r.Debt.Id" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+        <form asp-action="AddPayment" method="post">
+            <input type="hidden" name="id" value="@r.Debt.Id" />
+            <div class="modal-header"><h5 class="modal-title">Payment toward @r.Debt.Name</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <label class="form-label">Amount</label>
+                <input name="amount" type="number" step="0.01" min="0.01" class="form-control mb-2" required />
+                <label class="form-label">Note (optional)</label>
+                <input name="note" class="form-control mb-2" />
+                <div class="form-check"><input class="form-check-input" type="checkbox" name="recordExpense" value="true" checked id="re-@r.Debt.Id"><label class="form-check-label small" for="re-@r.Debt.Id">Record as an expense transaction</label></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-primary">Record payment</button></div>
+        </form>
+    </div></div></div>
 }

@@ -1,0 +1,158 @@
+@model PlanningOverviewViewModel
+@{
+    ViewData["Title"] = "Planning";
+    string Money(decimal d) => d.ToString("C0");
+    var maxBill = Model.BillMonths.Count > 0 ? Math.Max(1m, Model.BillMonths.Max(b => b.Amount)) : 1m;
+    var today = DateTime.UtcNow.Date;
+}
+
+<div class="hero">
+    <div class="page-header">
+        <div><h2>Planning</h2><p class="text-muted m-0">Plan ahead and stay on top of your financial commitments.</p></div>
+    </div>
+    <partial name="_PlanningTabs" model="@("overview")" />
+</div>
+
+<div class="plan-grid mt-3">
+    <!-- ── Savings Goals ── -->
+    <div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+            <div><h6 class="card-title m-0"><i class="bi bi-bullseye"></i> Savings Goals</h6>
+                <p class="text-muted small mb-0">Track your progress and keep building your future.</p></div>
+            <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("Create","SavingsGoals")"><i class="bi bi-plus-lg"></i> New Goal</a>
+        </div>
+
+        @if (!Model.Goals.Any())
+        {
+            <div class="empty-state py-4"><i class="bi bi-bullseye"></i><h6>No goals yet</h6><p>Set a savings target to get started.</p></div>
+        }
+        else
+        {
+            @foreach (var g in Model.Goals)
+            {
+                <div class="d-flex align-items-center gap-3 p-3 mt-2 rounded" style="border:1px solid var(--line);background:var(--glass);">
+                    <div class="ring" style="--p:@g.Pct;--ring-color:@g.Color;width:74px;height:74px;flex:0 0 auto;"><span style="font-size:.9rem;">@g.Pct%</span></div>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="text-muted small text-truncate">@g.Goal.Name</div>
+                        <div class="fw-bold" style="color:@g.Color;font-size:1.15rem;">@Money(g.Saved)</div>
+                        <div class="text-muted small">of @Money(g.Goal.TargetAmount)</div>
+                        <div class="d-flex justify-content-between small mt-1">
+                            <span class="text-muted">@Money(g.Left) left</span>
+                            @if (g.Goal.Deadline.HasValue) { <span class="text-muted">Target: @g.Goal.Deadline.Value.ToString("dd MMM yyyy")</span> }
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        <a class="d-block text-center mt-3 small fw-semibold text-decoration-none" style="color:var(--g);" href="@Url.Action("Index","SavingsGoals")">View all goals →</a>
+    </div></div>
+
+    <!-- ── Bills ── -->
+    <div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+            <div><h6 class="card-title m-0"><i class="bi bi-receipt"></i> Bills</h6>
+                <p class="text-muted small mb-0">Upcoming bills and payments.</p></div>
+            <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("Create","Bills")"><i class="bi bi-plus-lg"></i> Add Bill</a>
+        </div>
+
+        @if (!Model.UpcomingBills.Any())
+        {
+            <div class="empty-state py-4"><i class="bi bi-receipt"></i><h6>No upcoming bills</h6><p>Add a recurring bill to track it here.</p></div>
+        }
+        else
+        {
+            @foreach (var b in Model.UpcomingBills)
+            {
+                <div class="d-flex align-items-center gap-3 py-2 mt-1 px-2 rounded" style="border:1px solid var(--line);background:var(--glass);">
+                    <span style="width:2.4rem;height:2.4rem;border-radius:.65rem;display:grid;place-items:center;color:@b.Color;background:color-mix(in srgb,@b.Color 16%,transparent);flex:0 0 auto;"><i class="bi @b.Icon"></i></span>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="fw-semibold text-truncate">@b.Bill.Name</div>
+                        <div class="text-muted" style="font-size:.76rem;">@b.Bill.NextDueDate.ToString("dd MMM yyyy") · @(b.DaysUntil == 0 ? "today" : $"in {b.DaysUntil} days")</div>
+                    </div>
+                    <div class="text-end"><div class="fw-semibold">@b.Bill.Amount.ToString("C2")</div><span class="pill @b.StatusCls">@b.Status</span></div>
+                </div>
+            }
+        }
+        <a class="d-block text-center my-2 small fw-semibold text-decoration-none" style="color:var(--g);" href="@Url.Action("Index","Bills")">View all bills →</a>
+
+        <div class="p-3 rounded mt-2" style="border:1px solid var(--line);background:var(--glass);">
+            <div class="d-flex justify-content-between align-items-center">
+                <div><div class="text-muted small"><i class="bi bi-calendar3"></i> Total upcoming</div>
+                    <div class="fw-bold" style="font-size:1.3rem;color:var(--g);">@Money(Model.TotalUpcoming)</div>
+                    <div class="text-muted small">@Model.UpcomingCount bill@(Model.UpcomingCount == 1 ? "" : "s")</div></div>
+                <div class="d-flex align-items-end gap-2" style="height:60px;">
+                    @foreach (var m in Model.BillMonths)
+                    {
+                        var h = (int)Math.Round((double)(m.Amount / maxBill) * 100);
+                        <div class="text-center"><div style="width:18px;height:48px;display:flex;align-items:flex-end;"><div style="width:100%;height:@Math.Max(8, h)%;background:linear-gradient(180deg,var(--g),#10b981);border-radius:4px;"></div></div><div class="text-muted" style="font-size:.66rem;">@m.Label</div></div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div></div>
+
+    <!-- ── Debts ── -->
+    <div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+            <div><h6 class="card-title m-0"><i class="bi bi-credit-card-2-front"></i> Debts</h6>
+                <p class="text-muted small mb-0">Manage and track your debts.</p></div>
+            <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("Create","Debts")"><i class="bi bi-plus-lg"></i> Add Debt</a>
+        </div>
+
+        <div class="p-3 rounded mt-2" style="border:1px solid var(--line);background:var(--glass);">
+            <div class="d-flex justify-content-between">
+                <div><div class="text-muted small">Total Outstanding</div>
+                    <div class="fw-bold @(Model.TotalDebt > 0 ? "text-danger" : "text-success")" style="font-size:1.4rem;">@Money(Model.TotalDebt)</div>
+                    <div class="text-muted small">Across @Model.DebtCount account@(Model.DebtCount == 1 ? "" : "s")</div></div>
+            </div>
+        </div>
+
+        @if (!Model.Debts.Any())
+        {
+            <div class="empty-state py-4"><i class="bi bi-emoji-smile"></i><h6>Debt free</h6><p>You have no outstanding debts.</p></div>
+        }
+        else
+        {
+            @foreach (var d in Model.Debts)
+            {
+                var pct = d.Debt.OriginalBalance > 0 ? (int)Math.Min(100, (double)(d.Debt.CurrentBalance / d.Debt.OriginalBalance) * 100) : 0;
+                <div class="p-3 rounded mt-2" style="border:1px solid var(--line);background:var(--glass);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2 min-w-0">
+                            <span style="width:2.2rem;height:2.2rem;border-radius:.6rem;display:grid;place-items:center;color:@d.Color;background:color-mix(in srgb,@d.Color 16%,transparent);flex:0 0 auto;"><i class="bi @d.Icon"></i></span>
+                            <span class="fw-semibold text-truncate">@d.Debt.Name</span>
+                        </div>
+                        <div class="text-end"><div class="fw-bold">@d.Debt.CurrentBalance.ToString("C0")</div><div class="text-muted" style="font-size:.72rem;">Outstanding</div></div>
+                    </div>
+                    <div class="progress mt-2"><div class="progress-bar" style="width:@pct%;background:@d.Color;"></div></div>
+                    <div class="d-flex justify-content-between small mt-1">
+                        <span class="text-muted">@d.Debt.CurrentBalance.ToString("C0") of @d.Debt.OriginalBalance.ToString("C0")</span>
+                        <span class="text-muted">@pct%</span>
+                    </div>
+                    <div class="d-flex justify-content-between small mt-1">
+                        <span class="text-muted">Min. payment: @d.Debt.MinimumPayment.ToString("C2")</span>
+                        <span class="text-muted">Due: @d.Due.ToString("dd MMM yyyy")</span>
+                    </div>
+                </div>
+            }
+        }
+        <a class="d-block text-center my-2 small fw-semibold text-decoration-none" style="color:var(--g);" href="@Url.Action("Index","Debts")">View all debts →</a>
+
+        <div class="p-3 rounded mt-2" style="border:1px solid var(--line);background:var(--glass);">
+            <div class="d-flex align-items-center gap-3">
+                <span style="font-size:1.6rem;color:var(--g);filter:drop-shadow(0 0 12px var(--g-glow));"><i class="bi bi-graph-up-arrow"></i></span>
+                <div><div class="fw-semibold small">Debt insight</div><p class="text-muted small mb-0">@Model.DebtInsight</p></div>
+            </div>
+            <a class="d-block mt-2 small fw-semibold text-decoration-none" style="color:var(--g);" href="@Url.Action("Index","Reports")">See full report →</a>
+        </div>
+    </div></div>
+</div>
+
+<!-- Planning tip -->
+<div class="card mt-3"><div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <span style="width:2.6rem;height:2.6rem;border-radius:.8rem;display:grid;place-items:center;color:var(--g);background:var(--g-soft);box-shadow:inset 0 0 0 1px rgba(37,224,126,.3);"><i class="bi bi-lightbulb"></i></span>
+        <div><div class="fw-semibold">Planning tip</div><p class="text-muted small mb-0">Automate your savings and bill payments to stay consistent and stress-free.</p></div>
+    </div>
+    <a class="btn btn-primary" href="@Url.Action("ChangePassword","Account")">Go to Settings <i class="bi bi-arrow-right"></i></a>
+</div></div>

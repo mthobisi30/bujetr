@@ -3,38 +3,69 @@
     ViewData["Title"] = "Login";
 }
 
-<div class="auth-card">
-    <div class="card"><div class="card-body p-4">
-        <h3 class="text-center mb-1"><i class="bi bi-brain text-primary"></i> Welcome back</h3>
-        <p class="text-center text-muted mb-4">Sign in to your CognitiveBudget account.</p>
+<div class="auth-split">
+    <div class="auth-marketing">
+        <h1>Understand your spending.<br><span style="color:var(--g);">Beat the impulse.</span></h1>
+        <p class="lead">CognitiveBudget maps your patterns, watches for the moments that matter, and nudges you with timely insights — so you stay in control.</p>
+
+        <div class="auth-feature"><span class="fi"><i class="bi bi-activity"></i></span>
+            <div><h6>Track with clarity</h6><p class="text-muted small mb-0">See where your money goes with beautiful insights and real-time updates.</p></div></div>
+        <div class="auth-feature"><span class="fi"><i class="bi bi-bell"></i></span>
+            <div><h6>Get nudged in time</h6><p class="text-muted small mb-0">Smart alerts help you avoid impulse spending and stay on track.</p></div></div>
+        <div class="auth-feature"><span class="fi"><i class="bi bi-shield-check"></i></span>
+            <div><h6>Stay in control</h6><p class="text-muted small mb-0">Set limits, build better habits, and reach your goals — consistently.</p></div></div>
+
+        <div class="trust-card d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-3">
+                <span class="fi"><i class="bi bi-shield-check"></i></span>
+                <div><div class="fw-bold">Your data is secure</div><p class="text-muted small mb-0">Bank-level security. We never share your data.</p></div>
+            </div>
+            <span class="pill pill-green"><i class="bi bi-lock"></i> Private by design</span>
+        </div>
+    </div>
+
+    <div class="auth-form-card">
+        <div class="text-center mb-4">
+            <span class="brand mark mx-auto d-inline-grid" style="width:3rem;height:3rem;font-size:1.4rem;">C</span>
+            <h2 class="fw-bold mt-3 mb-1">Welcome back</h2>
+            <p class="text-muted small mb-0">Sign in to your CognitiveBudget account.</p>
+        </div>
 
         <form asp-action="Login" method="post">
             <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
             <div class="mb-3">
                 <label asp-for="Email" class="form-label"></label>
-                <input asp-for="Email" class="form-control" autocomplete="username" />
-                <span asp-validation-for="Email" class="text-danger"></span>
+                <input asp-for="Email" class="form-control" autocomplete="username" placeholder="you@example.com" />
+                <span asp-validation-for="Email" class="text-danger small"></span>
             </div>
-            <div class="mb-3">
+            <div class="mb-2 pw-wrap">
                 <label asp-for="Password" class="form-label"></label>
-                <input asp-for="Password" class="form-control" type="password" autocomplete="current-password" />
-                <span asp-validation-for="Password" class="text-danger"></span>
+                <input asp-for="Password" class="form-control" type="password" autocomplete="current-password" placeholder="Enter your password" data-pw />
+                <button type="button" class="pw-eye" data-pw-toggle><i class="bi bi-eye"></i></button>
+                <span asp-validation-for="Password" class="text-danger small"></span>
             </div>
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <div class="form-check m-0">
-                    <input asp-for="RememberMe" class="form-check-input" />
-                    <label asp-for="RememberMe" class="form-check-label"></label>
-                </div>
-                <a class="small" href="@Url.Action("ForgotPassword")">Forgot password?</a>
+                <div class="form-check m-0"><input asp-for="RememberMe" class="form-check-input" /><label asp-for="RememberMe" class="form-check-label"></label></div>
+                <a class="small" style="color:var(--g);" href="@Url.Action("ForgotPassword")">Forgot password?</a>
             </div>
-            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-box-arrow-in-right"></i> Login</button>
+            <button type="submit" class="btn btn-primary w-100 py-2"><i class="bi bi-box-arrow-in-right"></i> Log in</button>
         </form>
-        <p class="text-center text-muted mt-3 mb-0 small">
-            No account? <a href="@Url.Action("Register")">Create one</a>
-        </p>
-    </div></div>
+        <p class="text-center text-muted mt-3 mb-0 small">No account? <a href="@Url.Action("Register")" style="color:var(--g);">Create one</a></p>
+    </div>
 </div>
+
+<div class="text-center text-muted small mt-4"><i class="bi bi-shield-lock text-success me-1"></i> We respect your privacy. Your information is encrypted and never shared.</div>
 
 @section Scripts {
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        document.querySelectorAll('[data-pw-toggle]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var i = b.parentElement.querySelector('[data-pw]');
+                if (!i) return;
+                var show = i.type === 'password'; i.type = show ? 'text' : 'password';
+                b.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+            });
+        });
+    </script>
 }

@@ -1,38 +1,48 @@
 @model EditAccountViewModel
-@{ ViewData["Title"] = "Edit account"; var sym = System.Globalization.NumberFormatInfo.CurrentInfo.CurrencySymbol; }
+@{
+    ViewData["Title"] = "Edit account";
+    var sym = System.Globalization.NumberFormatInfo.CurrentInfo.CurrencySymbol;
+}
 
-<div class="page-header">
-    <h2><i class="bi bi-bank text-primary"></i> Edit account</h2>
-    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-arrow-left"></i> Back</a>
-</div>
-
-<div class="card"><div class="card-body">
-<form asp-action="Edit" method="post">
-    <input type="hidden" asp-for="Id" />
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-    <div class="row g-3">
-        <div class="col-md-5">
-            <label asp-for="Name" class="form-label"></label>
-            <input asp-for="Name" class="form-control" />
-            <span asp-validation-for="Name" class="text-danger"></span>
+<div class="form-card">
+  <div class="card"><div class="card-body p-4 p-md-5">
+    <div class="form-head">
+      <span class="fh-ico"><i class="bi bi-bank"></i></span>
+      <div>
+        <h3>Edit account</h3>
+        <p class="text-muted small mb-0">Update this account's details, balance and status.</p>
+      </div>
+    </div>
+    <form asp-action="Edit" method="post">
+      <input type="hidden" asp-for="Id" />
+      <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+      <div class="row g-3">
+        <div class="col-12 col-md-5">
+          <label asp-for="Name" class="form-label"></label>
+          <input asp-for="Name" class="form-control" />
+          <span asp-validation-for="Name" class="text-danger"></span>
         </div>
-        <div class="col-md-4">
-            <label asp-for="AccountType" class="form-label">Type</label>
-            <select asp-for="AccountType" class="form-select">
-                @foreach (AccountType t in Enum.GetValues<AccountType>()) { <option value="@t" selected="@(t == Model.AccountType)">@(((Enum)t).Humanize())</option> }
-            </select>
+        <div class="col-12 col-md-4">
+          <label asp-for="AccountType" class="form-label">Type</label>
+          <select asp-for="AccountType" class="form-select">
+            @foreach (AccountType t in Enum.GetValues<AccountType>()) { <option value="@t" selected="@(t == Model.AccountType)">@(((Enum)t).Humanize())</option> }
+          </select>
         </div>
-        <div class="col-md-3">
-            <label asp-for="StartingBalance" class="form-label">Starting balance</label>
-            <div class="input-group"><span class="input-group-text">@sym</span><input asp-for="StartingBalance" class="form-control" type="number" step="0.01" /></div>
+        <div class="col-12 col-md-3">
+          <label asp-for="StartingBalance" class="form-label">Starting balance</label>
+          <div class="input-group"><span class="input-group-text">@sym</span><input asp-for="StartingBalance" class="form-control" type="number" step="0.01" /></div>
         </div>
         <div class="col-12 form-check ms-2">
-            <input asp-for="IsArchived" class="form-check-input" />
-            <label asp-for="IsArchived" class="form-check-label">Archived (hidden from new transactions &amp; transfers)</label>
+          <input asp-for="IsArchived" class="form-check-input" />
+          <label asp-for="IsArchived" class="form-check-label">Archived (hidden from new transactions &amp; transfers)</label>
         </div>
-    </div>
-    <div class="mt-4"><button class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
-        <a class="btn btn-link" href="@Url.Action("Index")">Cancel</a></div>
-</form>
-</div></div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
+        <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Cancel</a>
+      </div>
+    </form>
+  </div></div>
+</div>
+
 @section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

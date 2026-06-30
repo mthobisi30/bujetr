@@ -1,49 +1,87 @@
 @model List<AdminUserRow>
-@{ ViewData["Title"] = "Admin · Users"; }
+@{
+    ViewData["Title"] = "Admin · Users";
+    string[] avatarColors = { "#25e07e", "#8b5cf6", "#06b6d4", "#f59e0b", "#ef4444", "#3b82f6" };
+}
 
-<div class="page-header">
-    <h2><i class="bi bi-people text-primary"></i> Users</h2>
-    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-arrow-left"></i> Back to admin</a>
+<div class="hero">
+    <div class="page-header">
+        <div>
+            <h2>Manage Users</h2>
+            <p class="text-muted m-0">Promote admins, enable or disable accounts, and review activity.</p>
+        </div>
+        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-arrow-left"></i> Back to admin</a>
+    </div>
 </div>
 
 <div class="card"><div class="card-body p-0"><div class="table-responsive">
-<table class="table table-hover align-middle mb-0">
-    <thead><tr>
-        <th scope="col">Email</th><th scope="col">Name</th><th scope="col">Joined</th>
-        <th scope="col">Last login</th><th scope="col">Status</th><th scope="col" class="text-end">Actions</th>
-    </tr></thead>
-    <tbody>
-    @foreach (var u in Model)
-    {
-        <tr>
-            <td>@u.Email @if (u.IsSelf) { <span class="badge bg-info">you</span> }</td>
-            <td>@u.Name</td>
-            <td class="small text-muted">@u.CreatedAt.ToString("dd MMM yyyy")</td>
-            <td class="small text-muted">@(u.LastLoginAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</td>
-            <td>
-                @if (u.IsAdmin) { <span class="badge bg-primary">Admin</span> }
-                @if (u.IsDisabled) { <span class="badge bg-danger">Disabled</span> } else { <span class="badge bg-success">Active</span> }
-            </td>
-            <td class="text-end text-nowrap">
-                @if (!u.IsSelf)
-                {
-                    <form asp-action="ToggleAdmin" method="post" class="d-inline">
-                        <input type="hidden" name="id" value="@u.Id" />
-                        <button class="btn btn-sm btn-outline-primary" title="@(u.IsAdmin ? "Remove admin" : "Make admin")">
-                            <i class="bi @(u.IsAdmin ? "bi-shield-minus" : "bi-shield-plus")"></i> @(u.IsAdmin ? "Unadmin" : "Make admin")
-                        </button>
-                    </form>
-                    <form asp-action="ToggleLock" method="post" class="d-inline">
-                        <input type="hidden" name="id" value="@u.Id" />
-                        <button class="btn btn-sm btn-outline-@(u.IsDisabled ? "success" : "danger")" onclick="return confirm('@(u.IsDisabled ? "Enable" : "Disable") this account?');">
-                            <i class="bi @(u.IsDisabled ? "bi-unlock" : "bi-lock")"></i> @(u.IsDisabled ? "Enable" : "Disable")
-                        </button>
-                    </form>
-                }
-                else { <span class="text-muted small">—</span> }
-            </td>
-        </tr>
-    }
-    </tbody>
-</table>
+@if (!Model.Any())
+{
+    <div class="empty-state">
+        <i class="bi bi-people"></i>
+        <h5>No users found</h5>
+        <p>Registered users will appear here.</p>
+    </div>
+}
+else
+{
+    <table class="table table-hover align-middle mb-0">
+        <thead><tr>
+            <th scope="col">User</th>
+            <th scope="col">Roles</th>
+            <th scope="col">Status</th>
+            <th scope="col">Last login</th>
+            <th scope="col" class="text-end">Actions</th>
+        </tr></thead>
+        <tbody>
+        @foreach (var u in Model)
+        {
+            var initial = !string.IsNullOrWhiteSpace(u.Name) ? u.Name.Trim()[0].ToString().ToUpper()
+                          : (!string.IsNullOrWhiteSpace(u.Email) ? u.Email.Trim()[0].ToString().ToUpper() : "?");
+            var color = avatarColors[Math.Abs((u.Email ?? u.Id).GetHashCode()) % avatarColors.Length];
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center gap-3">
+                        <span style="width:2.4rem;height:2.4rem;border-radius:.6rem;display:grid;place-items:center;font-weight:600;color:@color;background:color-mix(in srgb,@color 16%,transparent);">@initial</span>
+                        <div class="min-w-0">
+                            <div class="fw-semibold text-truncate">
+                                @(string.IsNullOrWhiteSpace(u.Name) ? u.Email : u.Name)
+                                @if (u.IsSelf) { <span class="pill pill-cyan">you</span> }
+                            </div>
+                            <div class="text-muted text-truncate" style="font-size:.78rem;">@u.Email</div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    @if (u.IsAdmin) { <span class="pill pill-green"><i class="bi bi-shield-lock"></i> Admin</span> }
+                    else { <span class="pill"><i class="bi bi-person"></i> User</span> }
+                </td>
+                <td>
+                    @if (u.IsDisabled) { <span class="pill pill-red"><i class="bi bi-slash-circle"></i> Disabled</span> }
+                    else { <span class="pill pill-green"><i class="bi bi-check-circle"></i> Active</span> }
+                </td>
+                <td class="small text-muted">@(u.LastLoginAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</td>
+                <td class="text-end text-nowrap">
+                    @if (!u.IsSelf)
+                    {
+                        <form asp-action="ToggleAdmin" method="post" class="d-inline">
+                            <input type="hidden" name="id" value="@u.Id" />
+                            <button class="btn btn-sm btn-outline-secondary" title="@(u.IsAdmin ? "Remove admin" : "Make admin")">
+                                <i class="bi @(u.IsAdmin ? "bi-shield-minus" : "bi-shield-plus")"></i> @(u.IsAdmin ? "Unadmin" : "Make admin")
+                            </button>
+                        </form>
+                        <form asp-action="ToggleLock" method="post" class="d-inline">
+                            <input type="hidden" name="id" value="@u.Id" />
+                            <button class="btn btn-sm btn-outline-@(u.IsDisabled ? "secondary" : "danger")" onclick="return confirm('@(u.IsDisabled ? "Enable" : "Disable") this account?');">
+                                <i class="bi @(u.IsDisabled ? "bi-unlock" : "bi-lock")"></i> @(u.IsDisabled ? "Enable" : "Disable")
+                            </button>
+                        </form>
+                    }
+                    else { <span class="text-muted small">—</span> }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
 </div></div></div>

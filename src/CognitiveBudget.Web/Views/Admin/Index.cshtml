@@ -1,36 +1,89 @@
 @model AdminStatsViewModel
-@{ ViewData["Title"] = "Admin"; }
+@{
+    ViewData["Title"] = "Admin";
+    Func<string, (string icon, string color)> actIcon = a => (a ?? "").ToLower() switch
+    {
+        var s when s.Contains("login") => ("bi-box-arrow-in-right", "#25e07e"),
+        var s when s.Contains("register") || s.Contains("user") => ("bi-person-plus", "#8b5cf6"),
+        var s when s.Contains("disable") || s.Contains("delete") || s.Contains("flag") => ("bi-exclamation-triangle", "#f59e0b"),
+        var s when s.Contains("role") || s.Contains("admin") => ("bi-shield-lock", "#06b6d4"),
+        _ => ("bi-gear", "#9aa3b2")
+    };
+}
 
-<div class="page-header">
-    <h2><i class="bi bi-gear-wide-connected text-primary"></i> Admin</h2>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-primary" href="@Url.Action("Users")"><i class="bi bi-people"></i> Users</a>
-        <a class="btn btn-outline-secondary" href="@Url.Action("Audit")"><i class="bi bi-journal-text"></i> Audit log</a>
+<div class="hero">
+    <div class="page-header">
+        <div><h2>Admin Dashboard</h2><p class="text-muted m-0">System overview and platform management.</p></div>
     </div>
 </div>
 
-<div class="row g-3">
-    @{
-        (string Label, int Value, string Icon, string Color)[] cards =
-        {
-            ("Users", Model.Users, "bi-people", "primary"),
-            ("Active (30d)", Model.ActiveUsers30d, "bi-person-check", "success"),
-            ("Logins (30d)", Model.RecentLogins, "bi-box-arrow-in-right", "info"),
-            ("Transactions", Model.Transactions, "bi-list-ul", "secondary"),
-            ("Accounts", Model.Accounts, "bi-bank", "secondary"),
-            ("Budgets", Model.Budgets, "bi-wallet2", "secondary"),
-            ("Savings goals", Model.SavingsGoals, "bi-piggy-bank", "secondary"),
-            ("Bills", Model.Bills, "bi-receipt", "secondary"),
-            ("Debts", Model.Debts, "bi-credit-card-2-front", "secondary"),
-        };
-    }
-    @foreach (var c in cards)
-    {
-        <div class="col-6 col-md-4 col-lg-3">
-            <div class="card stat-card h-100">
-                <div class="d-flex justify-content-between"><span class="stat-label">@c.Label</span><i class="bi @c.Icon stat-icon text-@c.Color"></i></div>
-                <div class="stat-value">@c.Value</div>
-            </div>
-        </div>
-    }
+<!-- KPIs -->
+<div class="row row-cols-2 row-cols-xl-4 g-3 my-1">
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Total Users</div><div class="val">@Model.Users.ToString("N0")</div><div class="text-muted small">registered</div></div><span class="chip-ico"><i class="bi bi-people"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Active Users</div><div class="val">@Model.ActiveUsers30d.ToString("N0")</div><div class="text-muted small">last 30 days</div></div><span class="chip-ico"><i class="bi bi-activity"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Total Budgets</div><div class="val">@Model.Budgets.ToString("N0")</div><div class="text-muted small">across users</div></div><span class="chip-ico cyan"><i class="bi bi-wallet2"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Total Transactions</div><div class="val">@Model.Transactions.ToString("N0")</div><div class="text-muted small">all-time</div></div><span class="chip-ico violet"><i class="bi bi-arrow-left-right"></i></span></div></div></div>
 </div>
+
+<div class="dash-grid">
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-bar-chart-line"></i> Platform Overview</h6>
+            <canvas id="platformChart" height="130"></canvas>
+        </div></div>
+
+        <div class="card"><div class="card-body p-0">
+            <div class="d-flex justify-content-between align-items-center p-3 pb-2"><h6 class="card-title m-0"><i class="bi bi-clock-history"></i> Recent Activity</h6><a class="btn btn-link p-0 small" href="@Url.Action("Audit")">View all →</a></div>
+            @if (Model.RecentAudits.Any())
+            {
+                @foreach (var a in Model.RecentAudits)
+                {
+                    var ic = actIcon(a.Action);
+                    <div class="d-flex align-items-center gap-3 px-3 py-2">
+                        <span style="width:2.2rem;height:2.2rem;border-radius:.6rem;display:grid;place-items:center;color:@ic.color;background:color-mix(in srgb,@ic.color 16%,transparent);"><i class="bi @ic.icon"></i></span>
+                        <div class="flex-grow-1 min-w-0"><div class="small fw-semibold">@a.Action</div><div class="text-muted text-truncate" style="font-size:.74rem;">@(a.Details ?? a.UserEmail ?? "—")</div></div>
+                        <div class="text-muted small text-nowrap">@a.Timestamp.ToString("dd MMM HH:mm")</div>
+                    </div>
+                }
+            }
+            else { <div class="empty-state py-4"><i class="bi bi-clock-history"></i><h6>No activity yet</h6><p>Audit events will appear here.</p></div> }
+        </div></div>
+    </div>
+
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-hdd-network"></i> System Status</h6>
+            @foreach (var s in new[] { ("API", "bi-hdd-stack"), ("Database", "bi-database"), ("Background Jobs", "bi-gear-wide-connected"), ("File Storage", "bi-folder") })
+            {
+                <div class="d-flex align-items-center gap-3 py-2">
+                    <span style="width:2.2rem;height:2.2rem;border-radius:.6rem;display:grid;place-items:center;color:var(--g);background:var(--g-soft);"><i class="bi @s.Item2"></i></span>
+                    <div class="flex-grow-1"><div class="small fw-semibold">@s.Item1</div><div class="text-muted" style="font-size:.74rem;">All systems operational</div></div>
+                    <span class="pill pill-green"><i class="bi bi-check-circle"></i> Operational</span>
+                </div>
+            }
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-3"><i class="bi bi-lightning-charge"></i> Quick Actions</h6>
+            <div class="row g-2">
+                <div class="col-6"><a class="btn btn-outline-secondary w-100 text-start" href="@Url.Action("Users")"><i class="bi bi-people"></i> Manage Users</a></div>
+                <div class="col-6"><a class="btn btn-outline-secondary w-100 text-start" href="@Url.Action("Audit")"><i class="bi bi-clipboard-data"></i> Audit Logs</a></div>
+                <div class="col-6"><a class="btn btn-outline-secondary w-100 text-start" href="@Url.Action("Index","Reports")"><i class="bi bi-bar-chart"></i> View Reports</a></div>
+                <div class="col-6"><a class="btn btn-outline-secondary w-100 text-start" href="@Url.Action("Index","Insights")"><i class="bi bi-graph-up"></i> Insights</a></div>
+            </div>
+        </div></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script>
+        new Chart(document.getElementById('platformChart'), {
+            type: 'bar',
+            data: { labels: ['Users','Transactions','Accounts','Budgets','Goals','Bills','Debts'],
+                datasets: [{ data: [@Model.Users,@Model.Transactions,@Model.Accounts,@Model.Budgets,@Model.SavingsGoals,@Model.Bills,@Model.Debts],
+                    backgroundColor: 'rgba(37,224,126,.7)', borderRadius: 5 }] },
+            options: { plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#7c8694' } }, y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#7c8694' } } } }
+        });
+    </script>
+}

@@ -1,6 +1,7 @@
 @model CreateCommitmentDeviceViewModel
+@{ var sym = System.Globalization.NumberFormatInfo.CurrentInfo.CurrencySymbol; }
 
-<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 <div class="row g-3">
     <div class="col-md-6">
         <label asp-for="Name" class="form-label"></label>
@@ -26,7 +27,7 @@
     <div class="col-md-6" id="thresholdFields">
         <label asp-for="ThresholdAmount" class="form-label">Threshold amount</label>
         <div class="input-group">
-            <span class="input-group-text">@System.Globalization.NumberFormatInfo.CurrentInfo.CurrencySymbol</span>
+            <span class="input-group-text">@sym</span>
             <input asp-for="ThresholdAmount" class="form-control" />
         </div>
         <span asp-validation-for="ThresholdAmount" class="text-danger"></span>
@@ -47,22 +48,22 @@
 
     <div class="col-12" id="timeFields">
         <label class="form-label d-block">Active days</label>
-        <div class="d-flex flex-wrap gap-3 mb-2">
+        <div class="d-flex flex-wrap gap-2 mb-3">
             @foreach (DayOfWeek day in Enum.GetValues<DayOfWeek>())
             {
                 var isChecked = Model.ActiveDays?.Contains(day) == true;
-                <div class="form-check">
+                <div class="form-check form-check-inline me-0">
                     <input class="form-check-input" type="checkbox" name="ActiveDays" value="@day" id="day-@day" checked="@isChecked" />
                     <label class="form-check-label" for="day-@day">@day.ToString().Substring(0, 3)</label>
                 </div>
             }
         </div>
-        <div class="row g-2">
-            <div class="col-auto">
+        <div class="row g-3">
+            <div class="col-sm-auto">
                 <label asp-for="ActiveFromHour" class="form-label">From hour (0–23)</label>
                 <input asp-for="ActiveFromHour" class="form-control" type="number" min="0" max="23" />
             </div>
-            <div class="col-auto">
+            <div class="col-sm-auto">
                 <label asp-for="ActiveToHour" class="form-label">To hour (0–23)</label>
                 <input asp-for="ActiveToHour" class="form-control" type="number" min="0" max="23" />
             </div>

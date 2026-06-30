@@ -1,51 +1,90 @@
 @model RegisterViewModel
 @{
-    ViewData["Title"] = "Register";
+    ViewData["Title"] = "Create account";
 }
 
-<div class="auth-card">
-    <div class="card"><div class="card-body p-4">
-        <h3 class="text-center mb-1"><i class="bi bi-brain text-primary"></i> Create your account</h3>
-        <p class="text-center text-muted mb-4">Start understanding your spending in minutes.</p>
+<div class="auth-split">
+    <div class="auth-marketing">
+        <h1>Understand your spending.<br><span style="color:var(--g);">Create</span> your account.</h1>
+        <p class="lead">Join thousands of people who are taking control of their money with intelligent insights and timely nudges.</p>
+
+        <div class="auth-feature"><span class="fi"><i class="bi bi-activity"></i></span>
+            <div><h6>Smart insights</h6><p class="text-muted small mb-0">We analyze your patterns to reveal what matters most.</p></div></div>
+        <div class="auth-feature"><span class="fi"><i class="bi bi-bell"></i></span>
+            <div><h6>Timely nudges</h6><p class="text-muted small mb-0">Get gentle reminders before impulse purchases happen.</p></div></div>
+        <div class="auth-feature"><span class="fi"><i class="bi bi-shield-check"></i></span>
+            <div><h6>Stay in control</h6><p class="text-muted small mb-0">Set limits, track goals, and build better habits — one decision at a time.</p></div></div>
+
+        <div class="trust-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div><div class="fw-bold" style="color:var(--g);">Your data is safe</div>
+                    <p class="text-muted small mb-0">Bank-level security and privacy-first by design. We'll never sell your data.</p></div>
+                <span class="fi"><i class="bi bi-shield-lock"></i></span>
+            </div>
+            <div class="d-flex gap-4 mt-3 small text-muted">
+                <span><i class="bi bi-lock text-success me-1"></i> 256-bit encryption</span>
+                <span><i class="bi bi-patch-check text-success me-1"></i> SOC 2 Type II</span>
+            </div>
+        </div>
+        <p class="text-muted small mt-3"><i class="bi bi-shield-check text-success me-1"></i> Trusted by users who want clarity, control and confidence.</p>
+    </div>
+
+    <div class="auth-form-card">
+        <div class="d-flex align-items-center gap-3 mb-4">
+            <span class="fi"><i class="bi bi-person-plus"></i></span>
+            <div><h3 class="m-0 fw-bold">Create your account</h3><p class="text-muted small mb-0">Start understanding your spending in minutes.</p></div>
+        </div>
 
         <form asp-action="Register" method="post">
             <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
-            <div class="row g-2">
+            <div class="row g-3">
                 <div class="col-6">
                     <label asp-for="FirstName" class="form-label"></label>
                     <input asp-for="FirstName" class="form-control" autocomplete="given-name" />
-                    <span asp-validation-for="FirstName" class="text-danger"></span>
+                    <span asp-validation-for="FirstName" class="text-danger small"></span>
                 </div>
                 <div class="col-6">
                     <label asp-for="LastName" class="form-label"></label>
                     <input asp-for="LastName" class="form-control" autocomplete="family-name" />
-                    <span asp-validation-for="LastName" class="text-danger"></span>
+                    <span asp-validation-for="LastName" class="text-danger small"></span>
                 </div>
             </div>
-            <div class="mb-3 mt-2">
+            <div class="mt-3">
                 <label asp-for="Email" class="form-label"></label>
-                <input asp-for="Email" class="form-control" type="email" autocomplete="email" />
-                <span asp-validation-for="Email" class="text-danger"></span>
+                <input asp-for="Email" class="form-control" type="email" autocomplete="email" placeholder="you@example.com" />
+                <span asp-validation-for="Email" class="text-danger small"></span>
             </div>
-            <div class="mb-2">
+            <div class="mt-3 pw-wrap">
                 <label asp-for="Password" class="form-label"></label>
-                <input asp-for="Password" class="form-control" type="password" autocomplete="new-password" />
-                <small class="form-text text-muted">At least 10 characters, with an uppercase letter, a number and a symbol.</small>
-                <span asp-validation-for="Password" class="text-danger d-block"></span>
+                <input asp-for="Password" class="form-control" type="password" autocomplete="new-password" data-pw />
+                <button type="button" class="pw-eye" data-pw-toggle><i class="bi bi-eye"></i></button>
             </div>
-            <div class="mb-3">
+            <small class="form-text text-muted">At least 10 characters, with an uppercase letter, a number and a symbol.</small>
+            <span asp-validation-for="Password" class="text-danger small d-block"></span>
+            <div class="mt-3 pw-wrap">
                 <label asp-for="ConfirmPassword" class="form-label"></label>
-                <input asp-for="ConfirmPassword" class="form-control" type="password" autocomplete="new-password" />
-                <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+                <input asp-for="ConfirmPassword" class="form-control" type="password" autocomplete="new-password" data-pw />
+                <button type="button" class="pw-eye" data-pw-toggle><i class="bi bi-eye"></i></button>
             </div>
-            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-person-plus"></i> Create account</button>
+            <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+            <button type="submit" class="btn btn-primary w-100 mt-4 py-2"><i class="bi bi-person-plus"></i> Create account</button>
         </form>
-        <p class="text-center text-muted mt-3 mb-0 small">
-            Already have an account? <a href="@Url.Action("Login")">Sign in</a>
-        </p>
-    </div></div>
+
+        <div class="d-flex align-items-center gap-2 my-3 text-muted small"><span class="flex-grow-1 border-bottom" style="border-color:var(--line)!important;"></span>OR<span class="flex-grow-1 border-bottom" style="border-color:var(--line)!important;"></span></div>
+        <p class="text-center text-muted mb-0 small">Already have an account? <a href="@Url.Action("Login")" style="color:var(--g);">Sign in</a></p>
+    </div>
 </div>
 
 @section Scripts {
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        document.querySelectorAll('[data-pw-toggle]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var i = b.parentElement.querySelector('[data-pw]');
+                if (!i) return;
+                var show = i.type === 'password'; i.type = show ? 'text' : 'password';
+                b.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+            });
+        });
+    </script>
 }

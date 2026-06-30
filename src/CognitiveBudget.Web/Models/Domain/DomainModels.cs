@@ -179,6 +179,7 @@ public class Bill
     public DateTime NextDueDate { get; set; }
     public BillRecurrence Recurrence { get; set; } = BillRecurrence.Monthly;
     public int ReminderDaysBefore { get; set; } = 3;
+    public bool AutoPay { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime? LastPaidDate { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

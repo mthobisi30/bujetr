@@ -1,68 +1,102 @@
 @model IEnumerable<SpendingTrigger>
 @{
-    ViewData["Title"] = "Spending Triggers";
-}
-
-<div class="page-header">
-    <h2><i class="bi bi-lightning-charge text-primary"></i> Spending triggers</h2>
-</div>
-<p class="text-muted">Patterns we've detected in your spending. Deactivate any that aren't useful — reactivate them later if you change your mind.</p>
-
-@if (!Model.Any())
-{
-    <div class="card"><div class="empty-state">
-        <i class="bi bi-lightning"></i>
-        <h5>No triggers detected yet</h5>
-        <p>Add more transactions, then run analysis from the dashboard. Triggers appear once we spot a confident pattern.</p>
-        <a class="btn btn-primary" href="@Url.Action("Index","Dashboard")"><i class="bi bi-speedometer2"></i> Go to dashboard</a>
-    </div></div>
-}
-else
-{
-    <div class="row g-3">
-    @foreach (var t in Model)
+    ViewData["Title"] = "Triggers";
+    var triggers = Model.ToList();
+    var active = triggers.Count(t => t.IsActive);
+    var avgConf = triggers.Any() ? (int)Math.Round(triggers.Average(t => t.ConfidenceScore) * 100) : 0;
+    var highOver = triggers.Count(t => t.AverageOverspendPercent >= 25);
+    var recommended = new[]
     {
-        <div class="col-md-6">
-            <div class="card h-100 @(t.IsActive ? "" : "opacity-75")">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <i class="bi bi-lightning-charge-fill text-warning"></i>
-                            <h6 class="card-title m-0">@t.Label</h6>
-                        </div>
-                        @if (t.IsActive)
-                        {
-                            <span class="badge rounded-pill bg-success">Active</span>
-                        }
-                        else
-                        {
-                            <span class="badge rounded-pill bg-secondary">Inactive</span>
-                        }
-                    </div>
-                    <p class="card-text text-muted small">@t.Insight</p>
-                    <div class="progress mb-1" role="progressbar" aria-valuenow="@((int)(t.ConfidenceScore*100))" aria-valuemin="0" aria-valuemax="100">
-                        <div class="progress-bar bg-warning" style="width:@((int)(t.ConfidenceScore*100))%"></div>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <small class="text-muted">@t.ConfidenceScore.ToString("P0") confidence · @t.SampleSize transactions</small>
-                        @if (t.IsActive)
-                        {
-                            <form asp-action="Deactivate" method="post">
-                                <input type="hidden" name="id" value="@t.Id" />
-                                <button class="btn btn-sm btn-outline-secondary" onclick="return confirm('Deactivate this trigger?');"><i class="bi bi-pause"></i> Deactivate</button>
-                            </form>
-                        }
-                        else
-                        {
-                            <form asp-action="Reactivate" method="post">
-                                <input type="hidden" name="id" value="@t.Id" />
-                                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-clockwise"></i> Reactivate</button>
-                            </form>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
-    </div>
+        ("Impulse-spend alert", "Get notified when unplanned spends exceed a limit.", "bi-cart"),
+        ("Payday transfer reminder", "Automate transfers on payday to stay consistent.", "bi-calendar-check"),
+        ("Entertainment spike watch", "Monitor unusual entertainment spending.", "bi-controller"),
+    };
 }
+
+<div class="hero">
+    <div class="page-header">
+        <div><h2>Insights</h2><p class="text-muted m-0">Monitor patterns, understand your money, and automate smarter financial decisions.</p></div>
+    </div>
+    <partial name="_InsightsTabs" model="@("triggers")" />
+</div>
+
+@if (TempData["Success"] != null) { <div class="alert alert-success mt-3">@TempData["Success"]</div> }
+
+<!-- KPIs -->
+<div class="row row-cols-2 row-cols-xl-4 g-3 my-1">
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Active Triggers</div><div class="val">@active</div><div class="text-muted small">currently monitoring</div></div><span class="chip-ico"><i class="bi bi-lightning-charge"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Detected Patterns</div><div class="val">@triggers.Count</div><div class="text-muted small">all-time</div></div><span class="chip-ico violet"><i class="bi bi-graph-up"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">Avg Confidence</div><div class="val">@avgConf%</div><div class="text-muted small">detection quality</div></div><span class="chip-ico cyan"><i class="bi bi-bullseye"></i></span></div></div></div>
+    <div class="col"><div class="card kpi h-100"><div class="d-flex justify-content-between"><div><div class="lbl">High-overspend</div><div class="val @(highOver > 0 ? "text-danger" : "")">@highOver</div><div class="text-muted small">≥25% over average</div></div><span class="chip-ico red"><i class="bi bi-exclamation-octagon"></i></span></div></div></div>
+</div>
+
+<div class="dash-grid">
+    <div class="dash-col">
+        <div class="card"><div class="card-body p-0">
+            <div class="d-flex justify-content-between align-items-center p-3 pb-2"><h6 class="card-title m-0"><i class="bi bi-activity"></i> Trigger Monitor</h6></div>
+            @if (!triggers.Any())
+            {
+                <div class="empty-state"><i class="bi bi-lightning-charge"></i><h5>No triggers detected yet</h5><p>As you log transactions, CognitiveBudget surfaces your spending patterns here.</p></div>
+            }
+            else
+            {
+                <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Trigger</th><th>Condition</th><th>Category</th><th style="min-width:120px;">Confidence</th><th>Sample</th><th>Status</th><th class="text-end">Action</th></tr></thead>
+                    <tbody>
+                    @foreach (var t in triggers)
+                    {
+                        var conf = (int)Math.Round(t.ConfidenceScore * 100);
+                        <tr>
+                            <td><div class="d-flex align-items-center gap-2"><span style="width:2.1rem;height:2.1rem;border-radius:.6rem;display:grid;place-items:center;color:var(--g);background:var(--g-soft);"><i class="bi bi-lightning-charge-fill"></i></span><span class="fw-semibold">@t.Label</span></div></td>
+                            <td class="text-muted small">@t.Insight</td>
+                            <td>@(string.IsNullOrEmpty(t.Category) ? "—" : t.Category)</td>
+                            <td><div class="d-flex align-items-center gap-2"><span class="small fw-semibold" style="width:2.4rem;">@conf%</span><div class="progress flex-grow-1"><div class="progress-bar bg-primary" style="width:@conf%"></div></div></div></td>
+                            <td class="small">@t.SampleSize</td>
+                            <td><span class="pill @(t.IsActive ? "pill-green" : "pill-gray")">@(t.IsActive ? "Active" : "Paused")</span></td>
+                            <td class="text-end">
+                                @if (t.IsActive)
+                                {
+                                    <form asp-action="Deactivate" method="post" class="d-inline"><input type="hidden" name="id" value="@t.Id" /><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-pause"></i> Pause</button></form>
+                                }
+                                else
+                                {
+                                    <form asp-action="Reactivate" method="post" class="d-inline"><input type="hidden" name="id" value="@t.Id" /><button class="btn btn-sm btn-outline-success"><i class="bi bi-play"></i> Resume</button></form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table></div>
+            }
+        </div></div>
+    </div>
+
+    <div class="dash-col">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-2"><i class="bi bi-bar-chart"></i> Overspend by Category</h6>
+            @{ var byCat = triggers.Where(t => !string.IsNullOrEmpty(t.Category)).OrderByDescending(t => t.AverageOverspendPercent).Take(6).ToList(); }
+            @if (byCat.Any())
+            {
+                @foreach (var t in byCat)
+                {
+                    var w = (int)Math.Min(100, t.AverageOverspendPercent);
+                    <div class="py-1"><div class="d-flex justify-content-between small"><span>@t.Category</span><span class="text-warning">+@t.AverageOverspendPercent.ToString("0")%</span></div>
+                        <div class="progress mt-1"><div class="progress-bar bg-warning" style="width:@w%"></div></div></div>
+                }
+            }
+            else { <p class="text-muted small mb-0">No category overspend patterns yet.</p> }
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title mb-2"><i class="bi bi-plus-circle"></i> Recommended Triggers</h6>
+            @foreach (var r in recommended)
+            {
+                <div class="d-flex align-items-center gap-3 py-2">
+                    <span style="width:2.1rem;height:2.1rem;border-radius:.6rem;display:grid;place-items:center;color:var(--g);background:var(--g-soft);"><i class="bi @r.Item3"></i></span>
+                    <div class="flex-grow-1 min-w-0"><div class="small fw-semibold">@r.Item1</div><div class="text-muted" style="font-size:.74rem;">@r.Item2</div></div>
+                    <a class="btn btn-sm btn-outline-success" href="@Url.Action("Create","CommitmentDevices")">Add</a>
+                </div>
+            }
+        </div></div>
+    </div>
+</div>
