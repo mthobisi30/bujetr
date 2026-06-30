@@ -15,10 +15,17 @@ namespace CognitiveBudget.Web.Data;
 /// </summary>
 public static class DemoDataSeeder
 {
-    public static async Task SeedAsync(IServiceProvider services, string demoEmail, string partnerEmail)
+    public static async Task SeedAsync(IServiceProvider services, string demoEmail, string partnerEmail, bool reset = false)
     {
         var users = services.GetRequiredService<UserManager<ApplicationUser>>();
         var db = services.GetRequiredService<ApplicationDbContext>();
+
+        // Reset wipes the demo users + all their data so seeding runs fresh.
+        if (reset)
+        {
+            await DeleteDemoDataAsync(db, users, demoEmail);
+            await DeleteDemoDataAsync(db, users, partnerEmail);
+        }
 
         var demo = await GetOrCreateUser(users, demoEmail, "Demo", "User");
         var partner = await GetOrCreateUser(users, partnerEmail, "Sam", "Partner");
@@ -178,6 +185,24 @@ public static class DemoDataSeeder
         db.SharedBudgets.Add(shared);
 
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>Removes a demo user and everything they own so a fresh seed can run.</summary>
+    private static async Task DeleteDemoDataAsync(ApplicationDbContext db, UserManager<ApplicationUser> users, string email)
+    {
+        var u = await users.FindByEmailAsync(email);
+        if (u is null) return;
+
+        // Shared budgets owned by the user (cascades members/expenses/shares),
+        // their memberships in other groups, and account transfers (no FK cascade).
+        db.SharedBudgets.RemoveRange(db.SharedBudgets.Where(s => s.OwnerId == u.Id));
+        db.SharedBudgetMembers.RemoveRange(db.SharedBudgetMembers.Where(m => m.UserId == u.Id));
+        db.AccountTransfers.RemoveRange(db.AccountTransfers.Where(a => a.UserId == u.Id));
+        await db.SaveChangesAsync();
+
+        // Deleting the user cascades transactions, accounts, budgets, goals, bills,
+        // debts, commitment rules and triggers (all have a cascade FK to the user).
+        await users.DeleteAsync(u);
     }
 
     private static async Task<ApplicationUser> GetOrCreateUser(UserManager<ApplicationUser> users, string email, string first, string last)
