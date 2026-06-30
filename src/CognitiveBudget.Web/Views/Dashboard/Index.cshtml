@@ -172,7 +172,7 @@
             @foreach (var m in Model.MoodSpending)
             {
                 <span class="badge rounded-pill bg-@(m.Mood.MoodCssClass()) fs-6">
-                    @m.Mood.MoodEmoji() @m.Mood?.Humanize(): @m.Total.ToString("C0") (@m.Count)
+                    @m.Mood?.Humanize(): @m.Total.ToString("C0") (@m.Count)
                 </span>
             }
         </div>
@@ -196,7 +196,7 @@
                     <td class="fw-semibold">@tx.Amount.ToString("C")</td>
                     <td><span class="badge bg-light text-dark border">@tx.Category</span></td>
                     <td>@tx.Description</td>
-                    <td>@if (tx.EmotionalState != null) {<span class="badge rounded-pill bg-@(tx.EmotionalState.MoodCssClass())">@tx.EmotionalState.MoodEmoji() @tx.EmotionalState.Humanize()</span>}</td>
+                    <td>@if (tx.EmotionalState != null) {<span class="badge rounded-pill bg-@(tx.EmotionalState.MoodCssClass())">@tx.EmotionalState.Humanize()</span>}</td>
                 </tr>
             }
             </tbody>

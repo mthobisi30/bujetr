@@ -65,7 +65,7 @@
                 <option value="">— not set —</option>
                 @foreach (EmotionalState state in Enum.GetValues<EmotionalState>())
                 {
-                    <option value="@state" selected="@(state.Equals(Model.EmotionalState))">@(((EmotionalState?)state).MoodEmoji()) @(((Enum)state).Humanize())</option>
+                    <option value="@state" selected="@(state.Equals(Model.EmotionalState))">@(((Enum)state).Humanize())</option>
                 }
             </select>
         </div>

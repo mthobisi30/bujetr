@@ -89,7 +89,7 @@ else
                         <td><span class="badge bg-light text-dark border">@tx.Category</span></td>
                         <td>@tx.Description</td>
                         <td class="text-muted">@tx.Merchant</td>
-                        <td>@if (tx.EmotionalState != null) {<span class="badge rounded-pill bg-@(tx.EmotionalState.MoodCssClass())">@tx.EmotionalState.MoodEmoji() @tx.EmotionalState.Humanize()</span>}</td>
+                        <td>@if (tx.EmotionalState != null) {<span class="badge rounded-pill bg-@(tx.EmotionalState.MoodCssClass())">@tx.EmotionalState.Humanize()</span>}</td>
                         <td class="text-end text-nowrap">
                             <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = tx.Id })" title="Edit"><i class="bi bi-pencil"></i></a>
                             <form asp-action="Delete" method="post" class="d-inline">

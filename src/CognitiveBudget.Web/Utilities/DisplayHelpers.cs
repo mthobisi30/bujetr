@@ -18,19 +18,6 @@ public static class DisplayHelpers
         return char.ToUpperInvariant(spaced[0]) + spaced.Substring(1).ToLowerInvariant();
     }
 
-    /// <summary>A small emoji cue for a mood, used in transaction lists.</summary>
-    public static string MoodEmoji(this EmotionalState? state) => state switch
-    {
-        EmotionalState.Happy    => "😊",
-        EmotionalState.Neutral  => "😐",
-        EmotionalState.Stressed => "😣",
-        EmotionalState.Anxious  => "😰",
-        EmotionalState.Bored    => "😑",
-        EmotionalState.Sad      => "😢",
-        EmotionalState.Excited  => "🤩",
-        _                       => ""
-    };
-
     /// <summary>Bootstrap contextual colour for a mood badge.</summary>
     public static string MoodCssClass(this EmotionalState? state) => state switch
     {

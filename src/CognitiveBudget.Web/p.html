@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - CognitiveBudget</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" crossorigin="anonymous" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+    <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg cb-nav sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="bi bi-brain"></i> CognitiveBudget</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                </ul>
+                <ul class="navbar-nav align-items-lg-center">
+                        <li class="nav-item"><a class="nav-link" href="/Account/Login">Login</a></li>
+                        <li class="nav-item"><a class="btn btn-sm btn-primary ms-lg-2" href="/Account/Register">Get started</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        
+<div class="auth-card">
+    <div class="card"><div class="card-body p-4">
+        <h3 class="text-center mb-1"><i class="bi bi-brain text-primary"></i> Welcome back</h3>
+        <p class="text-center text-muted mb-4">Sign in to your CognitiveBudget account.</p>
+
+        <form method="post" action="/Account/Login">
+            
+            <div class="mb-3">
+                <label class="form-label" for="Email">Email</label>
+                <input class="form-control" autocomplete="username" type="email" data-val="true" data-val-email="The Email field is not a valid e-mail address." data-val-required="The Email field is required." id="Email" name="Email" value="" />
+                <span class="text-danger field-validation-valid" data-valmsg-for="Email" data-valmsg-replace="true"></span>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="Password">Password</label>
+                <input class="form-control" type="password" autocomplete="current-password" data-val="true" data-val-required="The Password field is required." id="Password" name="Password" />
+                <span class="text-danger field-validation-valid" data-valmsg-for="Password" data-valmsg-replace="true"></span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="form-check m-0">
+                    <input class="form-check-input" type="checkbox" data-val="true" data-val-required="The RememberMe field is required." id="RememberMe" name="RememberMe" value="true" />
+                    <label class="form-check-label" for="RememberMe">RememberMe</label>
+                </div>
+                <a class="small" href="/Account/ForgotPassword">Forgot password?</a>
+            </div>
+            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-box-arrow-in-right"></i> Login</button>
+        <input name="__RequestVerificationToken" type="hidden" value="CfDJ8PdzWB_y5-FKsRWGr5ioN1m7gnytGZz6vht7V1RlcikhmUkkUXbLMKDnbNM8ulaoreD8Bf3Pcc7rKGRUXeExaR_alGSugSU3lFs9jGy4P-jvWG_VP8wvrH9PU8fr7hYkWW51DGjlWlk-EzqloTUUWPY" /><input name="RememberMe" type="hidden" value="false" /></form>
+        <p class="text-center text-muted mt-3 mb-0 small">
+            No account? <a href="/Account/Register">Create one</a>
+        </p>
+    </div></div>
+</div>
+
+
+
+        <footer class="cb-footer">
+            CognitiveBudget — understand your spending, beat the impulse.
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" integrity="sha512-..." crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js" integrity="sha512-..." crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate-unobtrusive/3.2.12/jquery.validate.unobtrusive.min.js" integrity="sha512-..." crossorigin="anonymous"></script>
+</body>
+</html>
