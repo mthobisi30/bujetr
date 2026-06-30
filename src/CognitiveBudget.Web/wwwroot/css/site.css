@@ -145,11 +145,11 @@ a:hover { color: #56f0a0; }
 .kpi { padding: 1.25rem 1.3rem; }
 .kpi .lbl { color: var(--muted); font-size: .82rem; font-weight: 600; }
 .kpi .val { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; margin: .35rem 0 .15rem; }
-.kpi .chip-ico { width: 2.7rem; height: 2.7rem; border-radius: .85rem; display: grid; place-items: center; font-size: 1.25rem;
-    color: var(--g); background: var(--g-soft); box-shadow: inset 0 0 0 1px rgba(37,224,126,.3), 0 0 22px -8px var(--g-glow); }
-.kpi .chip-ico.red { color: #ff8b8b; background: rgba(239,68,68,.14); box-shadow: inset 0 0 0 1px rgba(239,68,68,.3), 0 0 22px -8px rgba(239,68,68,.4); }
-.kpi .chip-ico.cyan { color: #67e8f9; background: rgba(6,182,212,.14); box-shadow: inset 0 0 0 1px rgba(6,182,212,.3), 0 0 22px -8px rgba(6,182,212,.4); }
-.kpi .chip-ico.violet { color: #c4b5fd; background: rgba(139,92,246,.16); box-shadow: inset 0 0 0 1px rgba(139,92,246,.3), 0 0 22px -8px rgba(139,92,246,.4); }
+.kpi .chip-ico { width: 3rem; height: 3rem; border-radius: 50%; display: grid; place-items: center; font-size: 1.3rem;
+    color: var(--g); background: color-mix(in srgb, var(--g) 9%, transparent); box-shadow: inset 0 0 0 2px rgba(37,224,126,.4), 0 0 24px -8px var(--g-glow); }
+.kpi .chip-ico.red { color: #ff8b8b; background: rgba(239,68,68,.1); box-shadow: inset 0 0 0 2px rgba(239,68,68,.4), 0 0 24px -8px rgba(239,68,68,.4); }
+.kpi .chip-ico.cyan { color: #67e8f9; background: rgba(6,182,212,.1); box-shadow: inset 0 0 0 2px rgba(6,182,212,.4), 0 0 24px -8px rgba(6,182,212,.4); }
+.kpi .chip-ico.violet { color: #c4b5fd; background: rgba(139,92,246,.1); box-shadow: inset 0 0 0 2px rgba(139,92,246,.4), 0 0 24px -8px rgba(139,92,246,.4); }
 .table.compact thead th, .table.compact tbody td { padding-top: .42rem; padding-bottom: .42rem; }
 .view-toggle .btn.active { background: var(--g-soft); color: var(--g); box-shadow: inset 0 0 0 1px rgba(37,224,126,.4); }
 .icon-action { width: 2rem; height: 2rem; padding: 0; display: inline-grid; place-items: center; border-radius: .55rem; }
@@ -206,7 +206,7 @@ a:hover { color: #56f0a0; }
 .mini-donut { width: 130px; height: 130px; border-radius: 50%; display: grid; place-items: center; position: relative; }
 .mini-donut::before { content: ""; position: absolute; width: 86px; height: 86px; border-radius: 50%; background: var(--bg-2); }
 .mini-donut span { position: relative; font-weight: 800; }
-.brand .mark { width: 2.2rem; height: 2.2rem; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 1.05rem;
+.brand .mark, .brand.mark { width: 2.2rem; height: 2.2rem; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 1.05rem;
     background: var(--g-soft); color: var(--g); box-shadow: inset 0 0 0 2px rgba(37,224,126,.5), 0 0 22px -6px var(--g-glow); }
 
 /* ── toasts ── */

@@ -2,8 +2,15 @@
     var currentController = ViewContext.RouteData.Values["controller"] as string;
     string NavActive(string c) => string.Equals(currentController, c, StringComparison.OrdinalIgnoreCase) ? "active" : "";
     var authed = User.Identity?.IsAuthenticated == true;
-    var displayName = User.Identity?.Name ?? "";
-    var initial = string.IsNullOrEmpty(displayName) ? "U" : displayName.Substring(0, 1).ToUpperInvariant();
+    var rawName = User.Identity?.Name ?? "";
+    var localPart = rawName.Contains('@') ? rawName.Split('@')[0] : rawName;
+    var nameParts = localPart.Replace(".", " ").Replace("_", " ").Replace("-", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    var displayName = nameParts.Length > 0
+        ? string.Join(" ", nameParts.Select(p => char.ToUpperInvariant(p[0]) + (p.Length > 1 ? p.Substring(1) : "")))
+        : "User";
+    var initial = nameParts.Length == 0 ? "U"
+        : nameParts.Length == 1 ? nameParts[0].Substring(0, 1).ToUpperInvariant()
+        : (nameParts[0].Substring(0, 1) + nameParts[1].Substring(0, 1)).ToUpperInvariant();
 }
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
@@ -80,9 +87,13 @@
                     @await Component.InvokeAsync("Alerts")
                 </ul>
                 <div class="dropdown">
-                    <a class="top-chip" href="#" role="button" data-bs-toggle="dropdown">
+                    <a class="top-chip profile-chip" href="#" role="button" data-bs-toggle="dropdown">
                         <span class="avatar" style="display:grid;place-items:center;background:var(--g-soft);color:var(--g);font-weight:800;">@initial</span>
-                        <span class="d-none d-sm-inline">@displayName</span> <i class="bi bi-chevron-down small"></i>
+                        <span class="d-none d-sm-block text-start lh-sm">
+                            <span class="d-block fw-semibold" style="font-size:.86rem;">@displayName</span>
+                            <span class="d-block" style="font-size:.68rem;color:var(--g);font-weight:700;">Premium</span>
+                        </span>
+                        <i class="bi bi-chevron-down small"></i>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
                         @if (User.IsInRole("Admin")) { <li><a class="dropdown-item" href="@Url.Action("Index","Admin")"><i class="bi bi-gear-wide-connected"></i> Admin</a></li> }

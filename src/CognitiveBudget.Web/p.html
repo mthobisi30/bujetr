@@ -27,6 +27,9 @@
         </div>
     </nav>
     <main>
+        <div class="toast-stack" id="toastStack">
+</div>
+
         <div class="public-wrap">
             
 <div class="auth-split">
@@ -75,7 +78,7 @@
                 <a class="small" style="color:var(--g);" href="/Account/ForgotPassword">Forgot password?</a>
             </div>
             <button type="submit" class="btn btn-primary w-100 py-2"><i class="bi bi-box-arrow-in-right"></i> Log in</button>
-        <input name="__RequestVerificationToken" type="hidden" value="CfDJ8PdzWB_y5-FKsRWGr5ioN1m9XiByz1EBK_hfdwgfVl2moIaoV-sW2K1p9urj2MK4sDe-OJdpREEgHyYjRhdQw9QzazqwLy14i25VJbs3UR0-dTxJ0qdskX3nSCvUFdysb45cVJbwsMpcXfcAPKjm7Mw" /><input name="RememberMe" type="hidden" value="false" /></form>
+        <input name="__RequestVerificationToken" type="hidden" value="CfDJ8PdzWB_y5-FKsRWGr5ioN1kVGmkWBvwUinNKw_YXXQzWabYN8PYhJiUwozCEFfblRWMci4jfqdHorTwF8zIYTJZfoZCQIvXCHcOQN_t56qvS_EjPJ6mEalnX7NrA2aMxHoA-Og66qCI8xH3k-zw-go0" /><input name="RememberMe" type="hidden" value="false" /></form>
         <p class="text-center text-muted mt-3 mb-0 small">No account? <a href="/Account/Register" style="color:var(--g);">Create one</a></p>
     </div>
 </div>
@@ -92,6 +95,12 @@
         // Mobile sidebar toggle
         var mt = document.getElementById('menuToggle');
         if (mt) mt.addEventListener('click', function () { document.getElementById('appShell').classList.toggle('nav-open'); });
+        // Toasts: dismiss + auto-hide
+        document.querySelectorAll('#toastStack .cb-toast').forEach(function (t) {
+            var close = function () { t.classList.add('cb-toast-out'); setTimeout(function () { t.remove(); }, 300); };
+            var x = t.querySelector('.cb-toast-x'); if (x) x.addEventListener('click', close);
+            setTimeout(close, 6000);
+        });
         // Theme toggle
         var tt = document.getElementById('themeToggle');
         function syncThemeLabel() {
