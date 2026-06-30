@@ -42,11 +42,59 @@ try
         .WriteTo.File("logs/app-.log", rollingInterval: RollingInterval.Day));
 
     // ── Database ──────────────────────────────────────────────────────────────
+    // Accept either the Npgsql keyword form (Host=...;Database=...) OR a
+    // postgres://… URI (what Neon/Render hand you) and normalize to keyword form
+    // so EF *and* the Dapper repositories (which read the raw string) both work.
+    var connectionString = NormalizePostgresConnectionString(
+        builder.Configuration.GetConnectionString("DefaultConnection"));
+    builder.Configuration["ConnectionStrings:DefaultConnection"] = connectionString;
+
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseNpgsql(
-            builder.Configuration.GetConnectionString("DefaultConnection"),
+            connectionString,
             npgsql => npgsql.MigrationsAssembly("CognitiveBudget.Web")
         ));
+
+    static string? NormalizePostgresConnectionString(string? cs)
+    {
+        if (string.IsNullOrWhiteSpace(cs)) return cs;
+        if (!cs.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) &&
+            !cs.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+            return cs; // already keyword form
+
+        var uri = new Uri(cs);
+        var userInfo = uri.UserInfo.Split(':', 2);
+        var b = new Npgsql.NpgsqlConnectionStringBuilder
+        {
+            Host = uri.Host,
+            Port = uri.Port > 0 ? uri.Port : 5432,
+            Database = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/')),
+            Username = Uri.UnescapeDataString(userInfo[0]),
+            Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : null
+        };
+        foreach (var part in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var kv = part.Split('=', 2);
+            var key = Uri.UnescapeDataString(kv[0]).ToLowerInvariant();
+            var val = kv.Length > 1 ? Uri.UnescapeDataString(kv[1]).ToLowerInvariant() : "";
+            if (key == "sslmode")
+                b.SslMode = val switch
+                {
+                    "disable" => Npgsql.SslMode.Disable, "allow" => Npgsql.SslMode.Allow,
+                    "prefer" => Npgsql.SslMode.Prefer, "verify-ca" => Npgsql.SslMode.VerifyCA,
+                    "verify-full" => Npgsql.SslMode.VerifyFull, _ => Npgsql.SslMode.Require
+                };
+            else if (key == "channel_binding")
+                b.ChannelBinding = val switch
+                {
+                    "disable" => Npgsql.ChannelBinding.Disable, "prefer" => Npgsql.ChannelBinding.Prefer,
+                    _ => Npgsql.ChannelBinding.Require
+                };
+        }
+        if (b.SslMode == Npgsql.SslMode.Disable && cs.Contains("neon.tech", StringComparison.OrdinalIgnoreCase))
+            b.SslMode = Npgsql.SslMode.Require;
+        return b.ConnectionString;
+    }
 
     // ── Identity ──────────────────────────────────────────────────────────────
     builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>

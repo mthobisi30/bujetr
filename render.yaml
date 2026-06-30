@@ -3,8 +3,10 @@
 #
 # Database: this assumes an EXTERNAL Postgres (e.g. Neon). Set
 # ConnectionStrings__DefaultConnection in the Render dashboard (it's marked
-# sync:false below so it isn't stored in git). To instead use a Render-managed
-# Postgres, see the commented `databases:` block at the bottom.
+# sync:false below so it isn't stored in git). You can paste Neon's connection
+# string in EITHER form — the app accepts the postgresql://… URI or the
+# Host=…;Database=… keyword form. To instead use a Render-managed Postgres, see
+# the commented `databases:` block at the bottom.
 
 services:
   - type: web
@@ -36,12 +38,17 @@ services:
         sync: false
 
 # ── Option: use a Render-managed Postgres instead of Neon ─────────────────────
-# Render's connection string is a postgres:// URI, which Npgsql does NOT parse
-# directly — you'd still convert it to "Host=...;Database=...;Username=...;
-# Password=...;SSL Mode=Require" and paste it into ConnectionStrings__Default-
-# Connection. So Neon (above) is simpler. If you want Render Postgres:
+# The app accepts Render's postgres:// URI directly, so you can wire it up with
+# fromDatabase. Uncomment the database and the connectionString env var below
+# (and remove the sync:false ConnectionStrings entry above):
 #
 # databases:
 #   - name: cognitivebudget-db
 #     plan: basic-256mb
 #     region: frankfurt
+#
+#   (then under the web service's envVars:)
+#     - key: ConnectionStrings__DefaultConnection
+#       fromDatabase:
+#         name: cognitivebudget-db
+#         property: connectionString
