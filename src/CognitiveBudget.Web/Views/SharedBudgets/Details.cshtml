@@ -1,0 +1,164 @@
+@model SharedBudgetDetailsViewModel
+@{
+    ViewData["Title"] = Model.Group.Name;
+    string Money(decimal d) => d.ToString("C");
+    var sym = System.Globalization.NumberFormatInfo.CurrentInfo.CurrencySymbol;
+}
+
+<div class="page-header">
+    <h2><i class="bi bi-house-heart text-primary"></i> @Model.Group.Name
+        <span class="badge bg-light text-dark border align-middle">@Model.MyRole</span></h2>
+    <div class="d-flex gap-2">
+        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-arrow-left"></i> Back</a>
+        @if (Model.IsOwner)
+        {
+            <form asp-action="Delete" method="post"><input type="hidden" name="id" value="@Model.Group.Id" />
+                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this shared budget for everyone?');"><i class="bi bi-trash"></i> Delete</button></form>
+        }
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Members -->
+    <div class="col-lg-4">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title"><i class="bi bi-people"></i> Members</h6>
+            <ul class="list-group list-group-flush">
+                @foreach (var m in Model.ActiveMembers)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span>@Model.NameOf(m.UserId!) <span class="badge bg-light text-dark border">@m.Role</span></span>
+                        @if (Model.IsOwner && m.Role != SharedRole.Owner)
+                        {
+                            <form asp-action="RemoveMember" method="post"><input type="hidden" name="id" value="@Model.Group.Id" /><input type="hidden" name="memberId" value="@m.Id" />
+                                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this member?');"><i class="bi bi-person-dash"></i></button></form>
+                        }
+                    </li>
+                }
+                @foreach (var p in Model.PendingInvites)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 text-muted">
+                        <span>@p.InvitedEmail <span class="badge bg-warning text-dark">pending</span></span>
+                    </li>
+                }
+            </ul>
+            @if (Model.IsOwner)
+            {
+                <form asp-action="Invite" method="post" class="row g-1 mt-2">
+                    <input type="hidden" name="id" value="@Model.Group.Id" />
+                    <div class="col-12"><input name="email" type="email" class="form-control form-control-sm" placeholder="invite by email" required /></div>
+                    <div class="col-7"><select name="role" class="form-select form-select-sm">
+                        <option value="Editor">Editor (can add expenses)</option>
+                        <option value="Viewer">Viewer (read-only)</option>
+                    </select></div>
+                    <div class="col-5"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-envelope-plus"></i> Invite</button></div>
+                </form>
+            }
+        </div></div>
+
+        <!-- Balances & settlement -->
+        <div class="card"><div class="card-body">
+            <h6 class="card-title"><i class="bi bi-cash-stack"></i> Balances</h6>
+            @foreach (var m in Model.ActiveMembers)
+            {
+                var net = Model.NetBalances.GetValueOrDefault(m.UserId!);
+                <div class="d-flex justify-content-between small">
+                    <span>@Model.NameOf(m.UserId!)</span>
+                    <span class="@(net > 0 ? "text-success" : net < 0 ? "text-danger" : "text-muted")">
+                        @(net > 0 ? "is owed " : net < 0 ? "owes " : "settled ")@Money(Math.Abs(net))
+                    </span>
+                </div>
+            }
+            <hr class="my-2" />
+            <h6 class="small text-muted">Suggested settlement</h6>
+            @if (!Model.Settlements.Any())
+            {
+                <p class="small text-muted mb-0">Everyone's settled up 🎉</p>
+            }
+            else
+            {
+                @foreach (var s in Model.Settlements)
+                {
+                    <div class="small"><strong>@Model.NameOf(s.FromUserId)</strong> <i class="bi bi-arrow-right"></i> <strong>@Model.NameOf(s.ToUserId)</strong>: @Money(s.Amount)</div>
+                }
+            }
+        </div></div>
+    </div>
+
+    <!-- Expenses -->
+    <div class="col-lg-8">
+        @if (Model.CanEdit)
+        {
+            <div class="card mb-3"><div class="card-body">
+                <h6 class="card-title"><i class="bi bi-plus-circle"></i> Add shared expense</h6>
+                <form asp-action="AddExpense" method="post">
+                    <input type="hidden" name="id" value="@Model.Group.Id" />
+                    <div class="row g-2">
+                        <div class="col-md-5"><input name="description" class="form-control form-control-sm" placeholder="Description" required /></div>
+                        <div class="col-md-3"><div class="input-group input-group-sm"><span class="input-group-text">@sym</span><input id="expAmount" name="amount" type="number" step="0.01" min="0.01" class="form-control" placeholder="Amount" required /></div></div>
+                        <div class="col-md-2"><input name="category" class="form-control form-control-sm" placeholder="Category" /></div>
+                        <div class="col-md-2"><input name="date" type="date" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" class="form-control form-control-sm" /></div>
+                        <div class="col-md-4">
+                            <select id="splitType" name="splitType" class="form-select form-select-sm">
+                                <option value="Equal">Split equally</option>
+                                <option value="Custom">Custom split</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="customSplit" class="mt-2" style="display:none;">
+                        <div class="small text-muted mb-1">Enter each member's share (must total the amount):</div>
+                        @foreach (var m in Model.ActiveMembers)
+                        {
+                            <div class="input-group input-group-sm mb-1" style="max-width:380px;">
+                                <span class="input-group-text" style="min-width:160px;">@Model.NameOf(m.UserId!)</span>
+                                <input type="hidden" name="shareUserId" value="@m.UserId" />
+                                <span class="input-group-text">@sym</span>
+                                <input name="shareAmount" type="number" step="0.01" min="0" value="0" class="form-control" />
+                            </div>
+                        }
+                    </div>
+                    <button class="btn btn-sm btn-primary mt-2"><i class="bi bi-check-lg"></i> Add expense</button>
+                </form>
+            </div></div>
+        }
+
+        <div class="card"><div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Date</th><th>Description</th><th>Paid by</th><th class="text-end">Amount</th><th></th></tr></thead>
+                    <tbody>
+                    @if (!Model.Expenses.Any())
+                    {
+                        <tr><td colspan="5" class="text-center text-muted py-4">No shared expenses yet.</td></tr>
+                    }
+                    @foreach (var e in Model.Expenses)
+                    {
+                        <tr>
+                            <td class="small">@e.Date.ToString("dd MMM")</td>
+                            <td>@e.Description @if (!string.IsNullOrWhiteSpace(e.Category)) {<span class="badge bg-light text-dark border">@e.Category</span>}</td>
+                            <td class="small">@Model.NameOf(e.PaidByUserId)</td>
+                            <td class="text-end fw-semibold">@Money(e.Amount)</td>
+                            <td class="text-end">
+                                @if (Model.IsOwner || e.PaidByUserId == Model.CurrentUserId)
+                                {
+                                    <form asp-action="DeleteExpense" method="post" class="d-inline"><input type="hidden" name="id" value="@Model.Group.Id" /><input type="hidden" name="expenseId" value="@e.Id" />
+                                        <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this expense?');"><i class="bi bi-trash"></i></button></form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        var st = document.getElementById('splitType');
+        if (st) st.addEventListener('change', function () {
+            document.getElementById('customSplit').style.display = this.value === 'Custom' ? '' : 'none';
+        });
+    </script>
+}

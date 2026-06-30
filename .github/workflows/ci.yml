@@ -17,11 +17,25 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Restore dependencies
         run: dotnet restore CognitiveBudget.sln
+      - name: Check for vulnerable packages
+        run: |
+          dotnet list CognitiveBudget.sln package --vulnerable --include-transitive 2>&1 | tee vuln.log
+          if grep -q -E "Critical|High" vuln.log; then
+            echo "::error::High/Critical vulnerable packages found"; exit 1
+          fi
       - name: Build
         run: dotnet build CognitiveBudget.sln --no-restore -c Release
       - name: Run tests
         run: |
-          dotnet test CognitiveBudget.sln --no-build -c Release --verbosity normal
+          dotnet test CognitiveBudget.sln --no-build -c Release --verbosity normal \
+            --collect:"XPlat Code Coverage" --results-directory ./coverage
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: ./coverage/**/coverage.cobertura.xml
+          if-no-files-found: ignore
 
   docker:
     needs: build

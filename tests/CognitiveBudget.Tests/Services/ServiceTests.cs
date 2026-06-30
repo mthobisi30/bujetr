@@ -104,6 +104,33 @@ public class NudgeServiceTests
         // Assert
         result.Should().BeNull();
     }
+
+    [Theory]
+    [InlineData(40, NudgeSeverity.Info)]          // +33% over £30 avg (30–50%)
+    [InlineData(50, NudgeSeverity.Warning)]       // +67% (50–100%)
+    [InlineData(75, NudgeSeverity.StrongWarning)] // +150% (>100%)
+    public async Task EvaluatePrePurchaseNudge_SeverityScalesWithOverspend(decimal amount, NudgeSeverity expected)
+    {
+        var userId = "user-sev";
+        _transactionRepoMock
+            .Setup(r => r.GetCategoryTotalsAsync(userId, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+            .ReturnsAsync(new List<CategorySpendDto> { new("Dining", 300m, 10, 100m) }); // avg = £30
+
+        var result = await _sut.EvaluatePrePurchaseNudgeAsync(userId, "Dining", amount);
+
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task RecordNudgeOutcome_PersistsViaRepository()
+    {
+        var txId = Guid.NewGuid();
+
+        await _sut.RecordNudgeOutcomeAsync(txId, heeded: true);
+
+        _transactionRepoMock.Verify(r => r.SetNudgeOutcomeAsync(txId, true), Times.Once);
+    }
 }
 
 // ─── CommitmentDeviceService Tests ───────────────────────────────────────────
@@ -198,7 +225,7 @@ public class CommitmentDeviceServiceTests
             UserId = userId,
             Name = "Block coffee shops",
             RuleType = CommitmentRuleType.MerchantBlock,
-            Category = "Starbucks",
+            MerchantKeyword = "Starbucks",
             IsActive = true
         };
         _repoMock.Setup(r => r.GetActiveByUserIdAsync(userId))
@@ -238,6 +265,24 @@ public class CommitmentDeviceServiceTests
         result.Name.Should().Be("No fast food Mondays");
         result.ThresholdAmount.Should().Be(20m);
         result.RuleType.Should().Be(CommitmentRuleType.CategoryLimit);
+    }
+
+    [Fact]
+    public async Task CreateDevice_MerchantBlock_MapsKeywordToDedicatedField()
+    {
+        var userId  = "user-mb";
+        var request = new CreateCommitmentDeviceRequest(
+            "Block coffee", "no coffee", CommitmentRuleType.MerchantBlock,
+            ThresholdAmount: null, Category: null, Action: CommitmentAction.Notify,
+            MerchantKeyword: "Starbucks");
+
+        _repoMock.Setup(r => r.CreateAsync(It.IsAny<CommitmentDevice>()))
+                 .ReturnsAsync((CommitmentDevice d) => d);
+
+        var result = await _sut.CreateDeviceAsync(userId, request);
+
+        result.MerchantKeyword.Should().Be("Starbucks");
+        result.Category.Should().BeNull();
     }
 }
 
@@ -364,4 +409,143 @@ public class SpendingTriggerRepositoryTests : IDisposable
     }
 
     public void Dispose() => _context.Dispose();
+}
+
+// ─── Savings / Bills / Debts repository tests ──────────────────────────────────
+
+public class FinancialModulesRepositoryTests : IDisposable
+{
+    private readonly ApplicationDbContext _context;
+
+    public FinancialModulesRepositoryTests()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        _context = new ApplicationDbContext(options);
+    }
+
+    [Fact]
+    public async Task AddContribution_AccumulatesAndAutoCompletesAtTarget()
+    {
+        var repo = new SavingsGoalRepository(_context);
+        var goal = await repo.CreateAsync(new SavingsGoal { UserId = "u", Name = "Laptop", TargetAmount = 100m });
+
+        await repo.AddContributionAsync(goal.Id, "u", 40m, null);
+        var mid = await repo.GetByIdAsync(goal.Id, "u");
+        mid!.Contributions.Sum(c => c.Amount).Should().Be(40m);
+        mid.IsCompleted.Should().BeFalse();
+
+        await repo.AddContributionAsync(goal.Id, "u", 60m, "final");
+        var done = await repo.GetByIdAsync(goal.Id, "u");
+        done!.Contributions.Sum(c => c.Amount).Should().Be(100m);
+        done.IsCompleted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AddContribution_WrongUser_ReturnsFalse()
+    {
+        var repo = new SavingsGoalRepository(_context);
+        var goal = await repo.CreateAsync(new SavingsGoal { UserId = "owner", Name = "X", TargetAmount = 50m });
+        (await repo.AddContributionAsync(goal.Id, "intruder", 10m, null)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task MarkPaid_AdvancesDueDateByRecurrence()
+    {
+        var repo = new BillRepository(_context);
+        var due = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+        var bill = await repo.CreateAsync(new Bill { UserId = "u", Name = "Rent", Amount = 100m, Category = "Housing", NextDueDate = due, Recurrence = BillRecurrence.Monthly });
+
+        var updated = await repo.MarkPaidAsync(bill.Id, "u");
+        updated!.NextDueDate.Should().Be(due.AddMonths(1));
+        updated.LastPaidDate.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task AddPayment_ReducesBalanceNotBelowZero()
+    {
+        var repo = new DebtRepository(_context);
+        var debt = await repo.CreateAsync(new Debt { UserId = "u", Name = "Card", OriginalBalance = 100m, CurrentBalance = 100m });
+
+        await repo.AddPaymentAsync(debt.Id, "u", 30m, null);
+        (await repo.GetByIdAsync(debt.Id, "u"))!.CurrentBalance.Should().Be(70m);
+
+        await repo.AddPaymentAsync(debt.Id, "u", 999m, "overpay");
+        var cleared = await repo.GetByIdAsync(debt.Id, "u");
+        cleared!.CurrentBalance.Should().Be(0m);
+        cleared.Payments.Should().HaveCount(2);
+    }
+
+    public void Dispose() => _context.Dispose();
+}
+
+// ─── BudgetService Tests ───────────────────────────────────────────────────────
+
+public class BudgetServiceTests
+{
+    private readonly Mock<IBudgetRepository> _budgetRepoMock = new();
+    private readonly Mock<ITransactionRepository> _txRepoMock = new();
+    private readonly BudgetService _sut;
+
+    public BudgetServiceTests()
+    {
+        _sut = new BudgetService(_budgetRepoMock.Object, _txRepoMock.Object);
+    }
+
+    [Fact]
+    public async Task GetProgress_ComputesSpentOverAndNet()
+    {
+        var userId = "u-budget";
+        var budget = new Budget
+        {
+            UserId = userId, Year = 2026, Month = 6,
+            OverallLimit = 1000m,
+            Categories = new List<BudgetCategory>
+            {
+                new() { Category = "Food", Limit = 100m },
+                new() { Category = "Transport", Limit = 50m }
+            }
+        };
+        _budgetRepoMock.Setup(r => r.GetByMonthAsync(userId, 2026, 6)).ReturnsAsync(budget);
+        _txRepoMock.Setup(r => r.GetCategoryTotalsAsync(userId, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+                   .ReturnsAsync(new List<CategorySpendDto>
+                   {
+                       new("Food", 120m, 8, 0m),       // over the 100 limit
+                       new("Transport", 30m, 4, 0m)    // under the 50 limit
+                   });
+        _txRepoMock.Setup(r => r.GetMonthlyTotalsAsync(userId, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+                   .ReturnsAsync((500m, 150m));        // income, expense
+
+        var progress = await _sut.GetProgressAsync(userId, 2026, 6);
+
+        progress.Exists.Should().BeTrue();
+        progress.TotalSpent.Should().Be(150m);
+        progress.TotalIncome.Should().Be(500m);
+        progress.Net.Should().Be(350m);
+
+        var food = progress.Categories.Single(c => c.Category == "Food");
+        food.Spent.Should().Be(120m);
+        food.Over.Should().BeTrue();
+
+        var transport = progress.Categories.Single(c => c.Category == "Transport");
+        transport.Over.Should().BeFalse();
+        transport.Remaining.Should().Be(20m);
+    }
+
+    [Fact]
+    public async Task GetProgress_NoBudget_ReturnsExistsFalse()
+    {
+        _budgetRepoMock.Setup(r => r.GetByMonthAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()))
+                       .ReturnsAsync((Budget?)null);
+        _txRepoMock.Setup(r => r.GetCategoryTotalsAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+                   .ReturnsAsync(new List<CategorySpendDto>());
+        _txRepoMock.Setup(r => r.GetMonthlyTotalsAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+                   .ReturnsAsync((0m, 0m));
+
+        var progress = await _sut.GetProgressAsync("nobody", 2026, 6);
+
+        progress.Exists.Should().BeFalse();
+        progress.Categories.Should().BeEmpty();
+    }
 }

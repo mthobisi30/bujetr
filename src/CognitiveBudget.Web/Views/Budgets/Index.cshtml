@@ -1,0 +1,88 @@
+@model BudgetProgress
+@{
+    ViewData["Title"] = "Budget";
+    var monthStart = new DateTime(Model.Year, Model.Month, 1);
+    var prev = monthStart.AddMonths(-1);
+    var next = monthStart.AddMonths(1);
+    string Money(decimal d) => d.ToString("C0");
+}
+
+<div class="page-header">
+    <h2><i class="bi bi-wallet2 text-primary"></i> Budget</h2>
+    <div class="d-flex align-items-center gap-2">
+        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index", new { year = prev.Year, month = prev.Month })"><i class="bi bi-chevron-left"></i></a>
+        <span class="fw-semibold">@monthStart.ToString("MMMM yyyy")</span>
+        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index", new { year = next.Year, month = next.Month })"><i class="bi bi-chevron-right"></i></a>
+        <a class="btn btn-sm btn-primary ms-2" href="@Url.Action("Edit", new { year = Model.Year, month = Model.Month })"><i class="bi bi-pencil"></i> Edit budget</a>
+    </div>
+</div>
+
+<!-- Income / spend / net summary -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card h-100">
+            <div class="d-flex justify-content-between"><span class="stat-label">Income</span><i class="bi bi-arrow-down-left stat-icon text-success"></i></div>
+            <div class="stat-value text-success">@Money(Model.TotalIncome)</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card h-100">
+            <div class="d-flex justify-content-between"><span class="stat-label">Spent</span><i class="bi bi-arrow-up-right stat-icon text-primary"></i></div>
+            <div class="stat-value">@Money(Model.TotalSpent)</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card h-100">
+            <div class="d-flex justify-content-between"><span class="stat-label">Net</span><i class="bi bi-graph-up-arrow stat-icon text-info"></i></div>
+            <div class="stat-value @(Model.Net < 0 ? "text-danger" : "text-success")">@Money(Model.Net)</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card h-100">
+            <div class="d-flex justify-content-between"><span class="stat-label">Budgeted</span><i class="bi bi-bullseye stat-icon text-warning"></i></div>
+            <div class="stat-value">@Money(Model.OverallLimit ?? Model.TotalLimit)</div>
+        </div>
+    </div>
+</div>
+
+@if (!Model.Exists || !Model.Categories.Any())
+{
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-wallet"></i>
+        <h5>No budget set for @monthStart.ToString("MMMM yyyy")</h5>
+        <p>Set category limits to track your spending against a plan and get overspend warnings.</p>
+        <a class="btn btn-primary" href="@Url.Action("Edit", new { year = Model.Year, month = Model.Month })"><i class="bi bi-plus-lg"></i> Set up budget</a>
+    </div></div>
+}
+else
+{
+    @if (Model.OverallLimit.HasValue)
+    {
+        var op = Model.OverallLimit.Value > 0 ? Math.Min(1.0, (double)(Model.TotalSpent / Model.OverallLimit.Value)) : 0;
+        <div class="card mb-3"><div class="card-body">
+            <div class="d-flex justify-content-between mb-1">
+                <span class="fw-semibold">Overall</span>
+                <span class="@(Model.OverAll ? "text-danger fw-semibold" : "text-muted")">@Money(Model.TotalSpent) / @Money(Model.OverallLimit.Value)</span>
+            </div>
+            <div class="progress" role="progressbar" aria-valuenow="@((int)(op*100))" aria-valuemin="0" aria-valuemax="100" style="height:.8rem;">
+                <div class="progress-bar @(Model.OverAll ? "bg-danger" : "bg-primary")" style="width:@((int)(op*100))%"></div>
+            </div>
+        </div></div>
+    }
+
+    <div class="card"><div class="card-body">
+        <h6 class="card-title mb-3">By category</h6>
+        @foreach (var c in Model.Categories)
+        {
+            <div class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                    <span>@c.Category @if (c.Over) {<span class="badge bg-danger ms-1">Over by @Money(c.Spent - c.Limit)</span>}</span>
+                    <span class="@(c.Over ? "text-danger fw-semibold" : "text-muted")">@Money(c.Spent) / @Money(c.Limit)</span>
+                </div>
+                <div class="progress" role="progressbar" aria-valuenow="@((int)(c.Percent*100))" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar @(c.Over ? "bg-danger" : (c.Percent >= 0.8 ? "bg-warning" : "bg-success"))" style="width:@((int)(c.Percent*100))%"></div>
+                </div>
+            </div>
+        }
+    </div></div>
+}

@@ -1,26 +1,61 @@
-@model IEnumerable<CognitiveBudget.Web.Models.Domain.CommitmentDevice>
+@model IEnumerable<CommitmentDevice>
 @{
     ViewData["Title"] = "Your commitment rules";
 }
 
-<h2>Commitment rules</h2>
-<p><a class="btn btn-primary" href="@Url.Action("Create")">Add rule</a></p>
-<table class="table table-sm">
-    <thead><tr><th>Name</th><th>Type</th><th>Action</th><th></th></tr></thead>
-    <tbody>
-    @foreach (var d in Model)
-    {
-        <tr>
-            <td>@d.Name</td>
-            <td>@d.RuleType</td>
-            <td>@d.Action</td>
-            <td>
-                <form asp-action="Delete" method="post" style="display:inline">
-                    <input type="hidden" name="id" value="@d.Id" />
-                    <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove rule?');">Delete</button>
-                </form>
-            </td>
-        </tr>
-    }
-    </tbody>
-</table>
+<div class="page-header">
+    <h2><i class="bi bi-shield-check text-primary"></i> Commitment rules</h2>
+    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add rule</a>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-shield-slash"></i>
+        <h5>No rules yet</h5>
+        <p>Commitment rules add friction before risky purchases — e.g. "warn me if I spend over £50 at weekends".</p>
+        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Create your first rule</a>
+    </div></div>
+}
+else
+{
+    <div class="card"><div class="card-body p-0">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead><tr>
+                <th scope="col">Name</th><th scope="col">Type</th><th scope="col">When triggered</th>
+                <th scope="col">Usage</th><th scope="col" class="text-end">Actions</th>
+            </tr></thead>
+            <tbody>
+            @foreach (var d in Model)
+            {
+                <tr>
+                    <td>
+                        <div class="fw-semibold">@d.Name</div>
+                        <small class="text-muted">@d.Description</small>
+                    </td>
+                    <td><span class="badge bg-light text-dark border">@(((Enum)d.RuleType).Humanize())</span></td>
+                    <td>@(((Enum)d.Action).Humanize())</td>
+                    <td>
+                        <small class="text-muted">
+                            Fired @d.TriggerCount · heeded @d.HeededCount
+                            @if (d.TriggerCount > 0)
+                            {
+                                <text>(@(((double)d.HeededCount / d.TriggerCount).ToString("P0")))</text>
+                            }
+                        </small>
+                    </td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = d.Id })" title="Edit"><i class="bi bi-pencil"></i></a>
+                        <form asp-action="Delete" method="post" class="d-inline">
+                            <input type="hidden" name="id" value="@d.Id" />
+                            <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Remove this rule?');"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    </div></div>
+}

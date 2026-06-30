@@ -1,0 +1,48 @@
+@model CreateBillViewModel
+@{ ViewData["Title"] = "Add bill"; var sym = System.Globalization.NumberFormatInfo.CurrentInfo.CurrencySymbol; }
+
+<div class="page-header">
+    <h2><i class="bi bi-receipt text-primary"></i> Add bill</h2>
+    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-arrow-left"></i> Back</a>
+</div>
+
+<div class="card"><div class="card-body">
+<form asp-action="Create" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" placeholder="e.g. Rent, Netflix" />
+            <span asp-validation-for="Name" class="text-danger"></span>
+        </div>
+        <div class="col-md-3">
+            <label asp-for="Amount" class="form-label"></label>
+            <div class="input-group"><span class="input-group-text">@sym</span><input asp-for="Amount" class="form-control" type="number" step="0.01" /></div>
+            <span asp-validation-for="Amount" class="text-danger"></span>
+        </div>
+        <div class="col-md-3">
+            <label asp-for="Category" class="form-label"></label>
+            <input asp-for="Category" class="form-control" placeholder="e.g. Housing" />
+            <span asp-validation-for="Category" class="text-danger"></span>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="NextDueDate" class="form-label">Next due date</label>
+            <input asp-for="NextDueDate" class="form-control" type="date" />
+            <span asp-validation-for="NextDueDate" class="text-danger"></span>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="Recurrence" class="form-label">Repeats</label>
+            <select asp-for="Recurrence" class="form-select">
+                @foreach (BillRecurrence r in Enum.GetValues<BillRecurrence>()) { <option value="@r">@(((Enum)r).Humanize())</option> }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="ReminderDaysBefore" class="form-label">Remind days before</label>
+            <input asp-for="ReminderDaysBefore" class="form-control" type="number" min="0" max="60" />
+        </div>
+    </div>
+    <div class="mt-4"><button class="btn btn-primary"><i class="bi bi-check-lg"></i> Add</button>
+        <a class="btn btn-link" href="@Url.Action("Index")">Cancel</a></div>
+</form>
+</div></div>
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

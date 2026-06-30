@@ -1,0 +1,70 @@
+@model IEnumerable<Debt>
+@{
+    ViewData["Title"] = "Debts";
+    string Money(decimal d) => d.ToString("C0");
+    var totalOwed = Model.Sum(d => d.CurrentBalance);
+}
+
+<div class="page-header">
+    <h2><i class="bi bi-credit-card-2-front text-primary"></i> Debt</h2>
+    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add debt</a>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-credit-card"></i>
+        <h5>No debts tracked</h5>
+        <p>Add loans, credit cards or accounts to track balances and pay them down.</p>
+        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add a debt</a>
+    </div></div>
+}
+else
+{
+    <div class="card stat-card mb-3" style="max-width:320px;">
+        <span class="stat-label">Total outstanding</span>
+        <div class="stat-value text-danger">@Money(totalOwed)</div>
+    </div>
+    <div class="row g-3">
+    @foreach (var d in Model)
+    {
+        var paid = d.OriginalBalance - d.CurrentBalance;
+        var pct = d.OriginalBalance > 0 ? (int)Math.Min(100, Math.Max(0, (double)(paid / d.OriginalBalance) * 100)) : 0;
+        var cleared = d.CurrentBalance <= 0;
+        <div class="col-md-6">
+            <div class="card h-100 @(cleared ? "border-success" : "")"><div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <h6 class="card-title mb-1"><i class="bi bi-cash-stack text-danger"></i> @d.Name</h6>
+                    <span class="badge bg-light text-dark border">@(((Enum)d.DebtType).Humanize())</span>
+                </div>
+                <div class="d-flex justify-content-between"><span class="text-muted small">Paid @Money(paid) of @Money(d.OriginalBalance)</span><span class="small fw-semibold">@pct%</span></div>
+                <div class="progress my-1" role="progressbar" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar @(cleared ? "bg-success" : "bg-info")" style="width:@pct%"></div>
+                </div>
+                <div class="small text-muted">
+                    Balance: <span class="fw-semibold @(cleared ? "text-success" : "text-danger")">@Money(d.CurrentBalance)</span>
+                    @if (d.InterestRate > 0) { <text> · @d.InterestRate.ToString("0.##")% APR</text> }
+                    @if (d.MinimumPayment > 0) { <text> · min @Money(d.MinimumPayment)</text> }
+                    @if (d.DueDayOfMonth.HasValue) { <text> · due day @d.DueDayOfMonth</text> }
+                </div>
+
+                @if (!cleared)
+                {
+                    <form asp-action="AddPayment" method="post" class="row g-1 mt-2">
+                        <input type="hidden" name="id" value="@d.Id" />
+                        <div class="col"><input name="amount" type="number" step="0.01" min="0" class="form-control form-control-sm" placeholder="Payment amount" /></div>
+                        <div class="col-auto"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-coin"></i> Pay</button></div>
+                    </form>
+                }
+                <div class="mt-2 text-end">
+                    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = d.Id })"><i class="bi bi-pencil"></i></a>
+                    <form asp-action="Delete" method="post" class="d-inline">
+                        <input type="hidden" name="id" value="@d.Id" />
+                        <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this debt?');"><i class="bi bi-trash"></i></button>
+                    </form>
+                </div>
+            </div></div>
+        </div>
+    }
+    </div>
+}

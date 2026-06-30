@@ -78,7 +78,7 @@ namespace CognitiveBudget.Tests.Controllers
         public async Task Index_ReturnsTriggers()
         {
             SetupUser("u2");
-            _repoMock.Setup(r => r.GetActiveByUserIdAsync("u2"))
+            _repoMock.Setup(r => r.GetAllByUserIdAsync("u2"))
                      .ReturnsAsync(new List<SpendingTrigger> { new() { Label = "foo", Insight = "bar" } });
             var result = await _sut.Index() as ViewResult;
             Assert.NotNull(result);

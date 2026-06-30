@@ -1,0 +1,81 @@
+@model CreateCommitmentDeviceViewModel
+
+<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" placeholder="e.g. Weekend spending cap" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="RuleType" class="form-label">Rule type</label>
+        <select asp-for="RuleType" class="form-select" id="ruleTypeSelect">
+            @foreach (CommitmentRuleType rt in Enum.GetValues<CommitmentRuleType>())
+            {
+                <option value="@rt" selected="@(rt == Model.RuleType)">@(((Enum)rt).Humanize())</option>
+            }
+        </select>
+        <small class="form-text text-muted" id="ruleTypeHelp"></small>
+    </div>
+    <div class="col-12">
+        <label asp-for="Description" class="form-label"></label>
+        <textarea asp-for="Description" class="form-control" rows="2" placeholder="What is this rule for?"></textarea>
+        <span asp-validation-for="Description" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6" id="thresholdFields">
+        <label asp-for="ThresholdAmount" class="form-label">Threshold amount</label>
+        <div class="input-group">
+            <span class="input-group-text">@System.Globalization.NumberFormatInfo.CurrentInfo.CurrencySymbol</span>
+            <input asp-for="ThresholdAmount" class="form-control" />
+        </div>
+        <span asp-validation-for="ThresholdAmount" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6" id="categoryField">
+        <label asp-for="Category" class="form-label">Category</label>
+        <input asp-for="Category" class="form-control" placeholder="e.g. Dining" />
+        <span asp-validation-for="Category" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6" id="merchantField">
+        <label asp-for="MerchantKeyword" class="form-label">Merchant keyword</label>
+        <input asp-for="MerchantKeyword" class="form-control" placeholder="e.g. Starbucks" />
+        <small class="form-text text-muted">Blocks any transaction whose merchant contains this text.</small>
+        <span asp-validation-for="MerchantKeyword" class="text-danger"></span>
+    </div>
+
+    <div class="col-12" id="timeFields">
+        <label class="form-label d-block">Active days</label>
+        <div class="d-flex flex-wrap gap-3 mb-2">
+            @foreach (DayOfWeek day in Enum.GetValues<DayOfWeek>())
+            {
+                var isChecked = Model.ActiveDays?.Contains(day) == true;
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="ActiveDays" value="@day" id="day-@day" checked="@isChecked" />
+                    <label class="form-check-label" for="day-@day">@day.ToString().Substring(0, 3)</label>
+                </div>
+            }
+        </div>
+        <div class="row g-2">
+            <div class="col-auto">
+                <label asp-for="ActiveFromHour" class="form-label">From hour (0–23)</label>
+                <input asp-for="ActiveFromHour" class="form-control" type="number" min="0" max="23" />
+            </div>
+            <div class="col-auto">
+                <label asp-for="ActiveToHour" class="form-label">To hour (0–23)</label>
+                <input asp-for="ActiveToHour" class="form-control" type="number" min="0" max="23" />
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <label asp-for="Action" class="form-label">When triggered</label>
+        <select asp-for="Action" class="form-select">
+            @foreach (CommitmentAction act in Enum.GetValues<CommitmentAction>())
+            {
+                <option value="@act" selected="@(act == Model.Action)">@(((Enum)act).Humanize())</option>
+            }
+        </select>
+    </div>
+</div>

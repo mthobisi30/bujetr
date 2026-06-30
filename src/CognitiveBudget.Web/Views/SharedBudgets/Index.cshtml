@@ -1,0 +1,53 @@
+@model SharedBudgetsIndexViewModel
+@{ ViewData["Title"] = "Shared budgets"; }
+
+<div class="page-header">
+    <h2><i class="bi bi-people text-primary"></i> Shared budgets</h2>
+    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> New shared budget</a>
+</div>
+
+@if (Model.Invites.Any())
+{
+    <div class="card mb-4 border-warning"><div class="card-body">
+        <h6 class="card-title"><i class="bi bi-envelope-paper text-warning"></i> Pending invites</h6>
+        @foreach (var inv in Model.Invites)
+        {
+            <div class="d-flex justify-content-between align-items-center border-top py-2">
+                <span>You've been invited to <strong>@inv.SharedBudget.Name</strong> as <span class="badge bg-light text-dark border">@inv.Role</span></span>
+                <span class="d-flex gap-1">
+                    <form asp-action="AcceptInvite" method="post"><input type="hidden" name="memberId" value="@inv.Id" />
+                        <button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Accept</button></form>
+                    <form asp-action="DeclineInvite" method="post"><input type="hidden" name="memberId" value="@inv.Id" />
+                        <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i> Decline</button></form>
+                </span>
+            </div>
+        }
+    </div></div>
+}
+
+@if (!Model.Groups.Any())
+{
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-people"></i>
+        <h5>No shared budgets yet</h5>
+        <p>Create a household or group budget and invite people to split expenses and settle up.</p>
+        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Create one</a>
+    </div></div>
+}
+else
+{
+    <div class="row g-3">
+    @foreach (var g in Model.Groups)
+    {
+        var memberCount = g.Members.Count(m => m.Status == InviteStatus.Active);
+        <div class="col-md-4">
+            <a class="text-decoration-none" href="@Url.Action("Details", new { id = g.Id })">
+                <div class="card h-100"><div class="card-body">
+                    <h6 class="card-title"><i class="bi bi-house-heart text-primary"></i> @g.Name</h6>
+                    <p class="text-muted small mb-0">@memberCount member@(memberCount == 1 ? "" : "s")</p>
+                </div></div>
+            </a>
+        </div>
+    }
+    </div>
+}

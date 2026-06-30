@@ -1,0 +1,33 @@
+@model List<CognitiveBudget.Web.Models.Domain.AuditLog>
+@{ ViewData["Title"] = "Admin · Audit log"; }
+
+<div class="page-header">
+    <h2><i class="bi bi-journal-text text-primary"></i> Audit log</h2>
+    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-arrow-left"></i> Back to admin</a>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="card"><div class="empty-state"><i class="bi bi-journal"></i><h5>No audit entries yet</h5></div></div>
+}
+else
+{
+    <div class="card"><div class="card-body p-0"><div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+        <thead><tr><th scope="col">When (UTC)</th><th scope="col">Action</th><th scope="col">User</th><th scope="col">Details</th></tr></thead>
+        <tbody>
+        @foreach (var a in Model)
+        {
+            var color = a.Action.Contains("Disabled") || a.Action.Contains("LockedOut") || a.Action.Contains("Revoked") ? "danger"
+                       : a.Action.Contains("Granted") || a.Action == "UserRegistered" ? "success" : "secondary";
+            <tr>
+                <td class="small text-muted">@a.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td><span class="badge bg-@color">@a.Action</span></td>
+                <td class="small">@a.UserEmail</td>
+                <td class="small text-muted">@a.Details</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div></div></div>
+}

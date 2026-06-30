@@ -1,57 +1,238 @@
-@model CognitiveBudget.Web.Controllers.DashboardViewModel
+@model DashboardViewModel
 @{
     ViewData["Title"] = "Dashboard";
+    var heededRate = Model.NudgesShown > 0 ? (double)Model.NudgesHeeded / Model.NudgesShown : 0;
+    var hasData = Model.TransactionCount > 0 || Model.RecentTransactions.Any();
 }
 
-<h2>Dashboard</h2>
-
-<div class="mb-3">
-    <form asp-action="RefreshTriggers" method="post">
-        <button class="btn btn-secondary">Re-run trigger analysis</button>
-        <span class="text-muted">(only needs to run when you add fresh transactions)</span>
+<div class="page-header">
+    <h2><i class="bi bi-speedometer2 text-primary"></i> Dashboard</h2>
+    <form asp-action="RefreshTriggers" method="post" class="m-0">
+        <button class="btn btn-outline-primary btn-sm" title="Re-analyse your transactions for new patterns">
+            <i class="bi bi-arrow-repeat"></i> Re-run analysis
+        </button>
     </form>
 </div>
 
-@if (Model.TopTriggers.Any())
+@if (!hasData)
 {
-    <h3>Top spending triggers</h3>
-    <ul class="list-group mb-4">
-        @foreach (var t in Model.TopTriggers)
-        {
-            <li class="list-group-item">
-                <strong>@t.Label</strong>: @t.Insight
-            </li>
-        }
-    </ul>
+    <div class="card">
+        <div class="empty-state">
+            <i class="bi bi-bar-chart-line"></i>
+            <h5>No data yet</h5>
+            <p>Add a few transactions and your spending insights will appear here.</p>
+            <a class="btn btn-primary" href="@Url.Action("Create","Transactions")"><i class="bi bi-plus-lg"></i> Add a transaction</a>
+            <a class="btn btn-outline-secondary" href="@Url.Action("Upload","Transactions")"><i class="bi bi-upload"></i> Import CSV</a>
+        </div>
+    </div>
+    return;
 }
 
-<h3>Recent transactions</h3>
-<table class="table table-striped">
-    <thead><tr><th>Date</th><th>Amount</th><th>Category</th><th>Description</th></tr></thead>
-    <tbody>
-    @foreach (var tx in Model.RecentTransactions)
-    {
-        <tr>
-            <td>@tx.TransactionDate.ToString("g")</td>
-            <td>@tx.Amount.ToString("C")</td>
-            <td>@tx.Category</td>
-            <td>@tx.Description</td>
-        </tr>
-    }
-    </tbody>
-</table>
+<!-- Summary cards -->
+@{
+    var budgetLimit = Model.Budget?.OverallLimit ?? Model.Budget?.TotalLimit ?? 0m;
+    var budgetSpent = Model.Budget?.TotalSpent ?? 0m;
+    var budgetPct = budgetLimit > 0 ? (int)Math.Min(100, (double)(budgetSpent / budgetLimit) * 100) : 0;
+    var budgetOver = budgetLimit > 0 && budgetSpent > budgetLimit;
+}
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card h-100">
+            <div class="d-flex justify-content-between"><span class="stat-label">Income (30d)</span><i class="bi bi-arrow-down-left stat-icon text-success"></i></div>
+            <div class="stat-value text-success">@Model.TotalIncome.ToString("C0")</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card h-100">
+            <div class="d-flex justify-content-between"><span class="stat-label">Spent (30d)</span><i class="bi bi-arrow-up-right stat-icon text-primary"></i></div>
+            <div class="stat-value">@Model.TotalSpend.ToString("C0")</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card h-100">
+            <div class="d-flex justify-content-between"><span class="stat-label">Net (30d)</span><i class="bi bi-graph-up-arrow stat-icon text-info"></i></div>
+            <div class="stat-value @(Model.Net < 0 ? "text-danger" : "text-success")">@Model.Net.ToString("C0")</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <a class="text-decoration-none" href="@Url.Action("Index","Budgets")">
+        <div class="card stat-card h-100">
+            <div class="d-flex justify-content-between"><span class="stat-label">Budget used</span><i class="bi bi-wallet2 stat-icon text-warning"></i></div>
+            @if (budgetLimit > 0)
+            {
+                <div class="stat-value @(budgetOver ? "text-danger" : "")">@budgetPct%</div>
+                <div class="progress mt-1"><div class="progress-bar @(budgetOver ? "bg-danger" : "bg-warning")" style="width:@budgetPct%"></div></div>
+            }
+            else
+            {
+                <div class="stat-value fs-5 text-muted">Set a budget</div>
+            }
+        </div>
+        </a>
+    </div>
+</div>
 
-<h3>Spending by category (last 30 days)</h3>
-<table class="table table-sm">
-    <thead><tr><th>Category</th><th>Total</th><th>Percent</th></tr></thead>
-    <tbody>
-    @foreach (var cat in Model.CategoryTotals)
-    {
-        <tr>
-            <td>@cat.Category</td>
-            <td>@cat.Total.ToString("C")</td>
-            <td>@cat.PercentOfTotal}%</td>
-        </tr>
-    }
-    </tbody>
-</table>
+<!-- Alerts banner -->
+@if (Model.Alerts.Any())
+{
+    <div class="card mb-4 border-warning"><div class="card-body py-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-bell-fill text-warning"></i> <strong>@Model.Alerts.Count</strong> notification@(Model.Alerts.Count == 1 ? "" : "s") need attention</span>
+            <a class="btn btn-sm btn-outline-warning" href="@Url.Action("Index","Notifications")">View</a>
+        </div>
+        <ul class="mb-0 mt-1 small">
+            @foreach (var a in Model.Alerts.Take(3)) { <li>@a.Message</li> }
+        </ul>
+    </div></div>
+}
+
+<!-- Planning at a glance -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="card h-100"><div class="card-body">
+        <h6 class="card-title"><i class="bi bi-piggy-bank text-primary"></i> Saved</h6>
+        <div class="stat-value">@Model.TotalSaved.ToString("C0")</div>
+        <a class="small" href="@Url.Action("Index","SavingsGoals")">Manage goals →</a>
+    </div></div></div>
+    <div class="col-md-4"><div class="card h-100"><div class="card-body">
+        <h6 class="card-title"><i class="bi bi-credit-card-2-front text-danger"></i> Debt outstanding</h6>
+        <div class="stat-value @(Model.TotalDebt > 0 ? "text-danger" : "")">@Model.TotalDebt.ToString("C0")</div>
+        <a class="small" href="@Url.Action("Index","Debts")">Manage debt →</a>
+    </div></div></div>
+    <div class="col-md-4"><div class="card h-100"><div class="card-body">
+        <h6 class="card-title"><i class="bi bi-receipt text-warning"></i> Upcoming bills</h6>
+        @if (Model.UpcomingBills.Any())
+        {
+            <ul class="list-unstyled mb-1 small">
+                @foreach (var b in Model.UpcomingBills)
+                {
+                    <li class="d-flex justify-content-between"><span>@b.Name</span><span class="text-muted">@b.NextDueDate.ToString("dd MMM") · @b.Amount.ToString("C0")</span></li>
+                }
+            </ul>
+        }
+        else { <p class="text-muted small mb-1">No bills tracked.</p> }
+        <a class="small" href="@Url.Action("Index","Bills")">Manage bills →</a>
+    </div></div></div>
+</div>
+
+<!-- Triggers -->
+@if (Model.TopTriggers.Any())
+{
+    <div class="row g-3 mb-4">
+        @foreach (var t in Model.TopTriggers)
+        {
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <i class="bi bi-lightning-charge-fill text-warning"></i>
+                            <h6 class="card-title m-0">@t.Label</h6>
+                        </div>
+                        <p class="card-text text-muted small mb-2">@t.Insight</p>
+                        <div class="progress" role="progressbar" aria-valuenow="@((int)(t.ConfidenceScore*100))" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar bg-warning" style="width:@((int)(t.ConfidenceScore*100))%"></div>
+                        </div>
+                        <small class="text-muted">@t.ConfidenceScore.ToString("P0") confidence · @t.SampleSize transactions</small>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Charts -->
+<div class="row g-3 mb-4">
+    <div class="col-lg-5">
+        <div class="card h-100"><div class="card-body">
+            <h6 class="card-title"><i class="bi bi-pie-chart"></i> Spending by category (30d)</h6>
+            @if (Model.CategoryTotals.Any())
+            {
+                <canvas id="categoryChart" height="220"></canvas>
+            }
+            else { <p class="text-muted small mb-0">No category data yet.</p> }
+        </div></div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card h-100"><div class="card-body">
+            <h6 class="card-title"><i class="bi bi-calendar-week"></i> Spending by day of week</h6>
+            @if (Model.DayOfWeekPatterns.Any())
+            {
+                <canvas id="dayChart" height="220"></canvas>
+            }
+            else { <p class="text-muted small mb-0">No day-of-week data yet.</p> }
+        </div></div>
+    </div>
+</div>
+
+<!-- Mood -->
+@if (Model.MoodSpending.Any())
+{
+    <div class="card mb-4"><div class="card-body">
+        <h6 class="card-title"><i class="bi bi-emoji-smile"></i> Spending by mood (30d)</h6>
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var m in Model.MoodSpending)
+            {
+                <span class="badge rounded-pill bg-@(m.Mood.MoodCssClass()) fs-6">
+                    @m.Mood.MoodEmoji() @m.Mood?.Humanize(): @m.Total.ToString("C0") (@m.Count)
+                </span>
+            }
+        </div>
+    </div></div>
+}
+
+<!-- Recent transactions -->
+<div class="card"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="card-title m-0"><i class="bi bi-clock-history"></i> Recent transactions</h6>
+        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index","Transactions")">View all</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead><tr><th scope="col">Date</th><th scope="col">Amount</th><th scope="col">Category</th><th scope="col">Description</th><th scope="col">Mood</th></tr></thead>
+            <tbody>
+            @foreach (var tx in Model.RecentTransactions)
+            {
+                <tr>
+                    <td>@tx.TransactionDate.ToString("dd MMM yyyy")</td>
+                    <td class="fw-semibold">@tx.Amount.ToString("C")</td>
+                    <td><span class="badge bg-light text-dark border">@tx.Category</span></td>
+                    <td>@tx.Description</td>
+                    <td>@if (tx.EmotionalState != null) {<span class="badge rounded-pill bg-@(tx.EmotionalState.MoodCssClass())">@tx.EmotionalState.MoodEmoji() @tx.EmotionalState.Humanize()</span>}</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div></div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script>
+        const palette = ['#4f46e5','#06b6d4','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec4899','#14b8a6'];
+        @if (Model.CategoryTotals.Any())
+        {
+            <text>
+            new Chart(document.getElementById('categoryChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: @Html.Raw(Json.Serialize(Model.CategoryTotals.Select(c => c.Category))),
+                    datasets: [{ data: @Html.Raw(Json.Serialize(Model.CategoryTotals.Select(c => c.Total))), backgroundColor: palette }]
+                },
+                options: { plugins: { legend: { position: 'right' } } }
+            });
+            </text>
+        }
+        @if (Model.DayOfWeekPatterns.Any())
+        {
+            <text>
+            new Chart(document.getElementById('dayChart'), {
+                type: 'bar',
+                data: {
+                    labels: @Html.Raw(Json.Serialize(Model.DayOfWeekPatterns.Select(d => d.PeriodLabel.Trim()))),
+                    datasets: [{ label: 'Total spend', data: @Html.Raw(Json.Serialize(Model.DayOfWeekPatterns.Select(d => d.TotalAmount))), backgroundColor: '#4f46e5', borderRadius: 6 }]
+                },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+            </text>
+        }
+    </script>
+}

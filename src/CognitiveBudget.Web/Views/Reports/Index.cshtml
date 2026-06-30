@@ -1,0 +1,67 @@
+@model ReportsViewModel
+@{
+    ViewData["Title"] = "Reports";
+    string Money(decimal d) => d.ToString("C0");
+}
+
+<div class="page-header">
+    <h2><i class="bi bi-bar-chart-line text-primary"></i> Reports</h2>
+    <a class="btn btn-outline-primary" href="@Url.Action("ExportCsv")"><i class="bi bi-download"></i> Export transactions (CSV)</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="card stat-card h-100">
+        <div class="d-flex justify-content-between"><span class="stat-label">Income (mo)</span><i class="bi bi-arrow-down-left stat-icon text-success"></i></div>
+        <div class="stat-value text-success">@Money(Model.MonthIncome)</div></div></div>
+    <div class="col-6 col-lg-3"><div class="card stat-card h-100">
+        <div class="d-flex justify-content-between"><span class="stat-label">Spent (mo)</span><i class="bi bi-arrow-up-right stat-icon text-primary"></i></div>
+        <div class="stat-value">@Money(Model.MonthExpense)</div></div></div>
+    <div class="col-6 col-lg-3"><div class="card stat-card h-100">
+        <div class="d-flex justify-content-between"><span class="stat-label">Savings rate</span><i class="bi bi-percent stat-icon text-info"></i></div>
+        <div class="stat-value">@Model.SavingsRate.ToString("P0")</div></div></div>
+    <div class="col-6 col-lg-3"><div class="card stat-card h-100">
+        <div class="d-flex justify-content-between"><span class="stat-label">Net worth-ish</span><i class="bi bi-graph-up stat-icon text-warning"></i></div>
+        <div class="stat-value">@Money(Model.TotalSaved - Model.TotalDebt)</div>
+        <small class="text-muted">saved @Money(Model.TotalSaved) · debt @Money(Model.TotalDebt)</small></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7"><div class="card h-100"><div class="card-body">
+        <h6 class="card-title"><i class="bi bi-bar-chart"></i> Income vs expense (6 months)</h6>
+        <canvas id="ieChart" height="240"></canvas>
+    </div></div></div>
+    <div class="col-lg-5"><div class="card h-100"><div class="card-body">
+        <h6 class="card-title"><i class="bi bi-pie-chart"></i> Spending by category (this month)</h6>
+        @if (Model.Categories.Any()) { <canvas id="catChart" height="240"></canvas> }
+        else { <p class="text-muted small mb-0">No spending yet this month.</p> }
+    </div></div></div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script>
+        const palette = ['#4f46e5','#06b6d4','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec4899','#14b8a6'];
+        new Chart(document.getElementById('ieChart'), {
+            type: 'bar',
+            data: {
+                labels: @Html.Raw(Json.Serialize(Model.Series.Select(s => s.Label))),
+                datasets: [
+                    { label: 'Income', data: @Html.Raw(Json.Serialize(Model.Series.Select(s => s.Income))), backgroundColor: '#10b981', borderRadius: 5 },
+                    { label: 'Expense', data: @Html.Raw(Json.Serialize(Model.Series.Select(s => s.Expense))), backgroundColor: '#4f46e5', borderRadius: 5 }
+                ]
+            },
+            options: { scales: { y: { beginAtZero: true } } }
+        });
+        @if (Model.Categories.Any())
+        {
+            <text>
+            new Chart(document.getElementById('catChart'), {
+                type: 'doughnut',
+                data: { labels: @Html.Raw(Json.Serialize(Model.Categories.Select(c => c.Category))),
+                        datasets: [{ data: @Html.Raw(Json.Serialize(Model.Categories.Select(c => c.Total))), backgroundColor: palette }] },
+                options: { plugins: { legend: { position: 'right' } } }
+            });
+            </text>
+        }
+    </script>
+}

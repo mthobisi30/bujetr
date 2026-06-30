@@ -31,7 +31,9 @@ public interface INudgeService
 public interface ICommitmentDeviceService
 {
     Task<IEnumerable<CommitmentDevice>> GetUserDevicesAsync(string userId);
+    Task<CommitmentDevice?> GetDeviceAsync(Guid id, string userId);
     Task<CommitmentDevice> CreateDeviceAsync(string userId, CreateCommitmentDeviceRequest request);
+    Task<bool> UpdateDeviceAsync(Guid id, string userId, CreateCommitmentDeviceRequest request);
     Task DeleteDeviceAsync(Guid id, string userId);
 
     /// <summary>
@@ -73,6 +75,143 @@ public record CreateCommitmentDeviceRequest(
 );
 
 public enum NudgeSeverity { Info, Warning, StrongWarning }
+
+// ─── Budget progress DTOs ─────────────────────────────────────────────────────
+
+public record CategoryProgress(string Category, decimal Limit, decimal Spent)
+{
+    public decimal Remaining => Limit - Spent;
+    public double Percent    => Limit > 0 ? Math.Min(1.0, (double)(Spent / Limit)) : 0;
+    public bool Over         => Spent > Limit;
+}
+
+public record BudgetProgress(
+    int Year, int Month, bool Exists,
+    decimal? OverallLimit, decimal TotalSpent, decimal TotalIncome,
+    IReadOnlyList<CategoryProgress> Categories)
+{
+    public decimal TotalLimit => Categories.Sum(c => c.Limit);
+    public decimal Net        => TotalIncome - TotalSpent;
+    public bool OverAll       => OverallLimit.HasValue && TotalSpent > OverallLimit.Value;
+}
+
+public interface IBudgetService
+{
+    Task<BudgetProgress> GetProgressAsync(string userId, int year, int month);
+    Task<Budget?> GetBudgetAsync(string userId, int year, int month);
+    Task SaveAsync(string userId, int year, int month, decimal? overallLimit,
+        IEnumerable<(string Category, decimal Limit)> categories);
+}
+
+public class BudgetService : IBudgetService
+{
+    private readonly IBudgetRepository _budgetRepo;
+    private readonly ITransactionRepository _txRepo;
+
+    public BudgetService(IBudgetRepository budgetRepo, ITransactionRepository txRepo)
+    {
+        _budgetRepo = budgetRepo;
+        _txRepo = txRepo;
+    }
+
+    public Task<Budget?> GetBudgetAsync(string userId, int year, int month)
+        => _budgetRepo.GetByMonthAsync(userId, year, month);
+
+    public Task SaveAsync(string userId, int year, int month, decimal? overallLimit,
+        IEnumerable<(string Category, decimal Limit)> categories)
+        => _budgetRepo.UpsertAsync(userId, year, month, overallLimit, categories);
+
+    public async Task<BudgetProgress> GetProgressAsync(string userId, int year, int month)
+    {
+        var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to   = from.AddMonths(1).AddTicks(-1);
+
+        var budget    = await _budgetRepo.GetByMonthAsync(userId, year, month);
+        var catTotals = await _txRepo.GetCategoryTotalsAsync(userId, from, to);   // expenses only
+        var (income, expense) = await _txRepo.GetMonthlyTotalsAsync(userId, from, to);
+
+        var spentByCat = catTotals
+            .GroupBy(c => c.Category, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Sum(c => c.Total), StringComparer.OrdinalIgnoreCase);
+
+        var cats = new List<CategoryProgress>();
+        if (budget is not null)
+        {
+            foreach (var bc in budget.Categories.OrderBy(c => c.Category))
+            {
+                spentByCat.TryGetValue(bc.Category, out var spent);
+                cats.Add(new CategoryProgress(bc.Category, bc.Limit, spent));
+            }
+        }
+
+        return new BudgetProgress(year, month, budget is not null,
+            budget?.OverallLimit, expense, income, cats);
+    }
+}
+
+// ─── Alerts / notifications ────────────────────────────────────────────────────
+
+public record Alert(string Severity, string Icon, string Message, string Url);
+
+public interface IAlertService
+{
+    Task<IReadOnlyList<Alert>> GetAlertsAsync(string userId);
+}
+
+public class AlertService : IAlertService
+{
+    private readonly IBillRepository _bills;
+    private readonly ISavingsGoalRepository _goals;
+    private readonly IBudgetService _budget;
+
+    public AlertService(IBillRepository bills, ISavingsGoalRepository goals, IBudgetService budget)
+    {
+        _bills = bills;
+        _goals = goals;
+        _budget = budget;
+    }
+
+    public async Task<IReadOnlyList<Alert>> GetAlertsAsync(string userId)
+    {
+        var now = DateTime.UtcNow;
+        var today = now.Date;
+        var alerts = new List<Alert>();
+
+        // Bills overdue / due soon
+        foreach (var b in await _bills.GetByUserIdAsync(userId))
+        {
+            var days = (b.NextDueDate.Date - today).Days;
+            if (days < 0)
+                alerts.Add(new Alert("danger", "bi-exclamation-octagon",
+                    $"\"{b.Name}\" is overdue ({b.Amount:C0}, was due {b.NextDueDate:dd MMM})", "/Bills"));
+            else if (days <= b.ReminderDaysBefore)
+                alerts.Add(new Alert("warning", "bi-alarm",
+                    $"\"{b.Name}\" due in {days} day{(days == 1 ? "" : "s")} ({b.Amount:C0})", "/Bills"));
+        }
+
+        // Over-budget categories this month
+        var progress = await _budget.GetProgressAsync(userId, now.Year, now.Month);
+        foreach (var c in progress.Categories.Where(c => c.Over))
+            alerts.Add(new Alert("warning", "bi-graph-up-arrow",
+                $"Over budget on {c.Category} by {(c.Spent - c.Limit):C0}", "/Budgets"));
+        if (progress.OverAll)
+            alerts.Add(new Alert("danger", "bi-wallet",
+                $"Total spending is over your monthly budget", "/Budgets"));
+
+        // Savings goal deadlines approaching
+        foreach (var g in await _goals.GetByUserIdAsync(userId))
+        {
+            if (g.IsCompleted || !g.Deadline.HasValue) continue;
+            var days = (g.Deadline.Value.Date - today).Days;
+            if (days is >= 0 and <= 30)
+                alerts.Add(new Alert("info", "bi-piggy-bank",
+                    $"Goal \"{g.Name}\" target date in {days} day{(days == 1 ? "" : "s")}", "/SavingsGoals"));
+        }
+
+        var order = new Dictionary<string, int> { ["danger"] = 0, ["warning"] = 1, ["info"] = 2 };
+        return alerts.OrderBy(a => order.GetValueOrDefault(a.Severity, 3)).ToList();
+    }
+}
 
 // ─── Implementations ──────────────────────────────────────────────────────────
 
@@ -226,9 +365,8 @@ public class NudgeService : INudgeService
 
     public async Task RecordNudgeOutcomeAsync(Guid transactionId, bool heeded)
     {
-        // This is a placeholder — in production, update the Transaction record
         _logger.LogInformation("Nudge outcome for transaction {Id}: heeded={Heeded}", transactionId, heeded);
-        await Task.CompletedTask;
+        await _transactionRepo.SetNudgeOutcomeAsync(transactionId, heeded);
     }
 }
 
@@ -240,6 +378,29 @@ public class CommitmentDeviceService : ICommitmentDeviceService
 
     public Task<IEnumerable<CommitmentDevice>> GetUserDevicesAsync(string userId)
         => _repo.GetActiveByUserIdAsync(userId);
+
+    public Task<CommitmentDevice?> GetDeviceAsync(Guid id, string userId)
+        => _repo.GetByIdAsync(id, userId);
+
+    public async Task<bool> UpdateDeviceAsync(Guid id, string userId, CreateCommitmentDeviceRequest request)
+    {
+        var device = await _repo.GetByIdAsync(id, userId);
+        if (device is null) return false;
+
+        device.Name            = request.Name;
+        device.Description     = request.Description;
+        device.RuleType        = request.RuleType;
+        device.ThresholdAmount = request.ThresholdAmount;
+        device.Category        = request.Category;
+        device.ActiveDays      = request.ActiveDays;
+        device.ActiveFromHour  = request.ActiveFromHour;
+        device.ActiveToHour    = request.ActiveToHour;
+        device.Action          = request.Action;
+        device.MerchantKeyword = request.MerchantKeyword;
+
+        await _repo.UpdateAsync(device);
+        return true;
+    }
 
     public async Task<CommitmentDevice> CreateDeviceAsync(string userId, CreateCommitmentDeviceRequest request)
     {
@@ -254,15 +415,9 @@ public class CommitmentDeviceService : ICommitmentDeviceService
             ActiveDays  = request.ActiveDays,
             ActiveFromHour = request.ActiveFromHour,
             ActiveToHour   = request.ActiveToHour,
-            Action      = request.Action
+            Action      = request.Action,
+            MerchantKeyword = request.MerchantKeyword
         };
-
-        // merchant keyword is stored in Category property for MerchantBlock rules
-        if (request.RuleType == CommitmentRuleType.MerchantBlock &&
-            !string.IsNullOrWhiteSpace(request.MerchantKeyword))
-        {
-            device.Category = request.MerchantKeyword;
-        }
 
         return await _repo.CreateAsync(device);
     }
@@ -310,8 +465,8 @@ public class CommitmentDeviceService : ICommitmentDeviceService
 
                 case CommitmentRuleType.MerchantBlock:
                     if (!string.IsNullOrWhiteSpace(merchant) &&
-                        device.Category != null &&
-                        merchant.Contains(device.Category, StringComparison.OrdinalIgnoreCase))
+                        !string.IsNullOrWhiteSpace(device.MerchantKeyword) &&
+                        merchant.Contains(device.MerchantKeyword, StringComparison.OrdinalIgnoreCase))
                     {
                         violated = true;
                     }

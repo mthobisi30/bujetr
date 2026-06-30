@@ -1,0 +1,11 @@
+<Project>
+  <!-- Applied to every project in the solution. Enables the built-in Roslyn
+       analyzers so style/quality issues surface at build time. Warnings are not
+       errors here to keep local builds friendly; tighten in CI if desired. -->
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+</Project>

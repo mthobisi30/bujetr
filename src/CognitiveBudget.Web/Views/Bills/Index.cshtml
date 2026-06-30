@@ -1,0 +1,56 @@
+@model IEnumerable<Bill>
+@{
+    ViewData["Title"] = "Bills";
+    var today = DateTime.UtcNow.Date;
+}
+
+<div class="page-header">
+    <h2><i class="bi bi-receipt text-primary"></i> Bills &amp; subscriptions</h2>
+    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add bill</a>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-receipt-cutoff"></i>
+        <h5>No bills tracked</h5>
+        <p>Add your recurring bills and subscriptions so nothing slips through.</p>
+        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add your first bill</a>
+    </div></div>
+}
+else
+{
+    <div class="card"><div class="card-body p-0"><div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead><tr>
+            <th scope="col">Name</th><th scope="col">Amount</th><th scope="col">Category</th>
+            <th scope="col">Next due</th><th scope="col">Every</th><th scope="col" class="text-end">Actions</th>
+        </tr></thead>
+        <tbody>
+        @foreach (var b in Model)
+        {
+            var days = (b.NextDueDate.Date - today).Days;
+            var status = days < 0 ? ("danger", "Overdue") : days <= b.ReminderDaysBefore ? ("warning", $"Due in {days}d") : ("light", b.NextDueDate.ToString("dd MMM"));
+            <tr>
+                <td class="fw-semibold">@b.Name</td>
+                <td>@b.Amount.ToString("C")</td>
+                <td><span class="badge bg-light text-dark border">@b.Category</span></td>
+                <td><span class="badge rounded-pill bg-@status.Item1 @(status.Item1=="light" ? "text-dark border" : "")">@status.Item2</span> <span class="small text-muted">@b.NextDueDate.ToString("dd MMM yyyy")</span></td>
+                <td class="text-muted">@(((Enum)b.Recurrence).Humanize())</td>
+                <td class="text-end text-nowrap">
+                    <form asp-action="MarkPaid" method="post" class="d-inline">
+                        <input type="hidden" name="id" value="@b.Id" />
+                        <button class="btn btn-sm btn-outline-success" title="Mark paid (records an expense)"><i class="bi bi-check2-circle"></i> Paid</button>
+                    </form>
+                    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = b.Id })"><i class="bi bi-pencil"></i></a>
+                    <form asp-action="Delete" method="post" class="d-inline">
+                        <input type="hidden" name="id" value="@b.Id" />
+                        <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this bill?');"><i class="bi bi-trash"></i></button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div></div></div>
+}

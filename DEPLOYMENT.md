@@ -24,10 +24,11 @@ The repository already includes a `Dockerfile` and `docker-compose.yml` for loca
    export ConnectionStrings__DefaultConnection="Host=<host>;Port=<port>;Database=<db>;Username=<user>;Password=<pass>;SSL Mode=Require;ChannelBinding=require"
    ```
 
-   For the supplied Neon database example:
+   For a Neon database, the connection string follows this form (replace the
+   placeholders with your own values — never commit real credentials):
 
    ```bash
-   export ConnectionStrings__DefaultConnection='postgresql://neondb_owner:npg_VKZjbL1G9Flc@ep-young-sea-adphisiq-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
+   export ConnectionStrings__DefaultConnection='postgresql://<user>:<password>@<host>.neon.tech/<database>?sslmode=require&channel_binding=require'
    ```
 
 2. **Apply migrations**

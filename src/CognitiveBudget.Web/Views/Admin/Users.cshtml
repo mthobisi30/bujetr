@@ -1,0 +1,49 @@
+@model List<AdminUserRow>
+@{ ViewData["Title"] = "Admin · Users"; }
+
+<div class="page-header">
+    <h2><i class="bi bi-people text-primary"></i> Users</h2>
+    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-arrow-left"></i> Back to admin</a>
+</div>
+
+<div class="card"><div class="card-body p-0"><div class="table-responsive">
+<table class="table table-hover align-middle mb-0">
+    <thead><tr>
+        <th scope="col">Email</th><th scope="col">Name</th><th scope="col">Joined</th>
+        <th scope="col">Last login</th><th scope="col">Status</th><th scope="col" class="text-end">Actions</th>
+    </tr></thead>
+    <tbody>
+    @foreach (var u in Model)
+    {
+        <tr>
+            <td>@u.Email @if (u.IsSelf) { <span class="badge bg-info">you</span> }</td>
+            <td>@u.Name</td>
+            <td class="small text-muted">@u.CreatedAt.ToString("dd MMM yyyy")</td>
+            <td class="small text-muted">@(u.LastLoginAt?.ToString("dd MMM yyyy HH:mm") ?? "—")</td>
+            <td>
+                @if (u.IsAdmin) { <span class="badge bg-primary">Admin</span> }
+                @if (u.IsDisabled) { <span class="badge bg-danger">Disabled</span> } else { <span class="badge bg-success">Active</span> }
+            </td>
+            <td class="text-end text-nowrap">
+                @if (!u.IsSelf)
+                {
+                    <form asp-action="ToggleAdmin" method="post" class="d-inline">
+                        <input type="hidden" name="id" value="@u.Id" />
+                        <button class="btn btn-sm btn-outline-primary" title="@(u.IsAdmin ? "Remove admin" : "Make admin")">
+                            <i class="bi @(u.IsAdmin ? "bi-shield-minus" : "bi-shield-plus")"></i> @(u.IsAdmin ? "Unadmin" : "Make admin")
+                        </button>
+                    </form>
+                    <form asp-action="ToggleLock" method="post" class="d-inline">
+                        <input type="hidden" name="id" value="@u.Id" />
+                        <button class="btn btn-sm btn-outline-@(u.IsDisabled ? "success" : "danger")" onclick="return confirm('@(u.IsDisabled ? "Enable" : "Disable") this account?');">
+                            <i class="bi @(u.IsDisabled ? "bi-unlock" : "bi-lock")"></i> @(u.IsDisabled ? "Enable" : "Disable")
+                        </button>
+                    </form>
+                }
+                else { <span class="text-muted small">—</span> }
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>
+</div></div></div>

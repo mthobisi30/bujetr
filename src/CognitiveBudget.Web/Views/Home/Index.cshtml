@@ -2,18 +2,45 @@
     ViewData["Title"] = "Welcome";
 }
 
-<div class="jumbotron text-center">
-    <h1 class="display-4">Welcome to CognitiveBudget</h1>
-    <p class="lead">Understand your spending patterns and stay in control of impulse purchases.</p>
-    <hr class="my-4" />
-    <p>
+<div class="text-center py-5">
+    <h1 class="display-4 fw-bold"><i class="bi bi-brain text-primary"></i> CognitiveBudget</h1>
+    <p class="lead text-muted mx-auto" style="max-width:640px;">
+        A behavioural-finance companion that maps your spending triggers and gently nudges you
+        before impulse purchases — so you stay in control of your money.
+    </p>
+    <div class="mt-4">
         @if (User.Identity?.IsAuthenticated == false)
         {
-            <a class="btn btn-primary btn-lg" href="@Url.Action("Register","Account")" role="button">Get Started</a>
+            <a class="btn btn-primary btn-lg" href="@Url.Action("Register","Account")"><i class="bi bi-rocket-takeoff"></i> Get started</a>
+            <a class="btn btn-outline-secondary btn-lg ms-2" href="@Url.Action("Login","Account")">Sign in</a>
         }
         else
         {
-            <a class="btn btn-primary btn-lg" href="@Url.Action("Index","Dashboard")" role="button">Go to Dashboard</a>
+            <a class="btn btn-primary btn-lg" href="@Url.Action("Index","Dashboard")"><i class="bi bi-speedometer2"></i> Go to dashboard</a>
         }
-    </p>
+    </div>
+</div>
+
+<div class="row g-3 mt-2">
+    <div class="col-md-4">
+        <div class="card h-100"><div class="card-body text-center">
+            <i class="bi bi-lightning-charge-fill text-warning fs-2"></i>
+            <h6 class="mt-2">Spot your triggers</h6>
+            <p class="text-muted small mb-0">We surface the times, days and moods when you tend to overspend.</p>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100"><div class="card-body text-center">
+            <i class="bi bi-bell-fill text-primary fs-2"></i>
+            <h6 class="mt-2">Get nudged in the moment</h6>
+            <p class="text-muted small mb-0">A heads-up before a purchase that's well above your usual.</p>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100"><div class="card-body text-center">
+            <i class="bi bi-shield-check text-success fs-2"></i>
+            <h6 class="mt-2">Commit to limits</h6>
+            <p class="text-muted small mb-0">Set rules that add friction to the spending you want to curb.</p>
+        </div></div>
+    </div>
 </div>

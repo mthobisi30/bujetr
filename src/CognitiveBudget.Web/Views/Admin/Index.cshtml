@@ -1,0 +1,36 @@
+@model AdminStatsViewModel
+@{ ViewData["Title"] = "Admin"; }
+
+<div class="page-header">
+    <h2><i class="bi bi-gear-wide-connected text-primary"></i> Admin</h2>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-primary" href="@Url.Action("Users")"><i class="bi bi-people"></i> Users</a>
+        <a class="btn btn-outline-secondary" href="@Url.Action("Audit")"><i class="bi bi-journal-text"></i> Audit log</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    @{
+        (string Label, int Value, string Icon, string Color)[] cards =
+        {
+            ("Users", Model.Users, "bi-people", "primary"),
+            ("Active (30d)", Model.ActiveUsers30d, "bi-person-check", "success"),
+            ("Logins (30d)", Model.RecentLogins, "bi-box-arrow-in-right", "info"),
+            ("Transactions", Model.Transactions, "bi-list-ul", "secondary"),
+            ("Accounts", Model.Accounts, "bi-bank", "secondary"),
+            ("Budgets", Model.Budgets, "bi-wallet2", "secondary"),
+            ("Savings goals", Model.SavingsGoals, "bi-piggy-bank", "secondary"),
+            ("Bills", Model.Bills, "bi-receipt", "secondary"),
+            ("Debts", Model.Debts, "bi-credit-card-2-front", "secondary"),
+        };
+    }
+    @foreach (var c in cards)
+    {
+        <div class="col-6 col-md-4 col-lg-3">
+            <div class="card stat-card h-100">
+                <div class="d-flex justify-content-between"><span class="stat-label">@c.Label</span><i class="bi @c.Icon stat-icon text-@c.Color"></i></div>
+                <div class="stat-value">@c.Value</div>
+            </div>
+        </div>
+    }
+</div>

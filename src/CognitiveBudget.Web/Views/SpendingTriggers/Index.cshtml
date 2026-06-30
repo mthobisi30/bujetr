@@ -1,26 +1,68 @@
-@model IEnumerable<CognitiveBudget.Web.Models.Domain.SpendingTrigger>
+@model IEnumerable<SpendingTrigger>
 @{
     ViewData["Title"] = "Spending Triggers";
 }
 
-<h2>Spending triggers</h2>
-<p>These are patterns detected in your transactions; you can deactivate any that are no longer relevant.</p>
-<table class="table table-sm">
-    <thead><tr><th>Label</th><th>Insight</th><th>Confidence</th><th></th></tr></thead>
-    <tbody>
+<div class="page-header">
+    <h2><i class="bi bi-lightning-charge text-primary"></i> Spending triggers</h2>
+</div>
+<p class="text-muted">Patterns we've detected in your spending. Deactivate any that aren't useful — reactivate them later if you change your mind.</p>
+
+@if (!Model.Any())
+{
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-lightning"></i>
+        <h5>No triggers detected yet</h5>
+        <p>Add more transactions, then run analysis from the dashboard. Triggers appear once we spot a confident pattern.</p>
+        <a class="btn btn-primary" href="@Url.Action("Index","Dashboard")"><i class="bi bi-speedometer2"></i> Go to dashboard</a>
+    </div></div>
+}
+else
+{
+    <div class="row g-3">
     @foreach (var t in Model)
     {
-        <tr>
-            <td>@t.Label</td>
-            <td>@t.Insight</td>
-            <td>@t.ConfidenceScore.ToString("P0")</td>
-            <td>
-                <form asp-action="Deactivate" method="post" style="display:inline">
-                    <input type="hidden" name="id" value="@t.Id" />
-                    <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate?');">Deactivate</button>
-                </form>
-            </td>
-        </tr>
+        <div class="col-md-6">
+            <div class="card h-100 @(t.IsActive ? "" : "opacity-75")">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <i class="bi bi-lightning-charge-fill text-warning"></i>
+                            <h6 class="card-title m-0">@t.Label</h6>
+                        </div>
+                        @if (t.IsActive)
+                        {
+                            <span class="badge rounded-pill bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge rounded-pill bg-secondary">Inactive</span>
+                        }
+                    </div>
+                    <p class="card-text text-muted small">@t.Insight</p>
+                    <div class="progress mb-1" role="progressbar" aria-valuenow="@((int)(t.ConfidenceScore*100))" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar bg-warning" style="width:@((int)(t.ConfidenceScore*100))%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">@t.ConfidenceScore.ToString("P0") confidence · @t.SampleSize transactions</small>
+                        @if (t.IsActive)
+                        {
+                            <form asp-action="Deactivate" method="post">
+                                <input type="hidden" name="id" value="@t.Id" />
+                                <button class="btn btn-sm btn-outline-secondary" onclick="return confirm('Deactivate this trigger?');"><i class="bi bi-pause"></i> Deactivate</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <form asp-action="Reactivate" method="post">
+                                <input type="hidden" name="id" value="@t.Id" />
+                                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-clockwise"></i> Reactivate</button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
     }
-    </tbody>
-</table>
+    </div>
+}

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
@@ -18,19 +19,34 @@ namespace CognitiveBudget.Web.Services
     {
         private readonly IServiceProvider _services;
         private readonly ILogger<TriggerBackgroundService> _logger;
+        private readonly TimeSpan _interval;
+        private readonly bool _enabled;
 
-        // once-a-day by default
-        private readonly TimeSpan _interval = TimeSpan.FromHours(24);
-
-        public TriggerBackgroundService(IServiceProvider services, ILogger<TriggerBackgroundService> logger)
+        public TriggerBackgroundService(
+            IServiceProvider services,
+            ILogger<TriggerBackgroundService> logger,
+            IConfiguration configuration)
         {
             _services = services;
             _logger = logger;
+
+            // Configurable so multi-instance deployments can run analysis on a
+            // single instance (set BackgroundService:Enabled=false on the rest)
+            // and so the cadence can be tuned without a redeploy.
+            var hours = configuration.GetValue("BackgroundService:TriggerAnalysisIntervalHours", 24);
+            _interval = TimeSpan.FromHours(hours <= 0 ? 24 : hours);
+            _enabled  = configuration.GetValue("BackgroundService:Enabled", true);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Trigger background service starting");
+            if (!_enabled)
+            {
+                _logger.LogInformation("Trigger background service disabled via configuration");
+                return;
+            }
+
+            _logger.LogInformation("Trigger background service starting (interval: {Interval})", _interval);
             while (!stoppingToken.IsCancellationRequested)
             {
                 try

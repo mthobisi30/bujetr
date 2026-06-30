@@ -17,10 +17,79 @@ namespace CognitiveBudget.Web.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.0")
+                .HasAnnotation("ProductVersion", "8.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Account", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccountType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("StartingBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Accounts");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.AccountTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FromAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("ToAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AccountTransfers");
+                });
 
             modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.ApplicationUser", b =>
                 {
@@ -102,6 +171,143 @@ namespace CognitiveBudget.Web.Data.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Timestamp");
+
+                    b.ToTable("AuditLogs");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Bill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastPaidDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("NextDueDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Recurrence")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("ReminderDaysBefore")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "NextDueDate");
+
+                    b.ToTable("Bills");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Budget", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("OverallLimit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("Budgets");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.BudgetCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BudgetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("Limit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BudgetId", "Category")
+                        .IsUnique();
+
+                    b.ToTable("BudgetCategories");
+                });
+
             modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.CommitmentDevice", b =>
                 {
                     b.Property<Guid>("Id")
@@ -122,7 +328,8 @@ namespace CognitiveBudget.Web.Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Category")
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -137,6 +344,10 @@ namespace CognitiveBudget.Web.Data.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("MerchantKeyword")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -162,6 +373,280 @@ namespace CognitiveBudget.Web.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("CommitmentDevices");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Debt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("CurrentBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("DebtType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int?>("DueDayOfMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("InterestRate")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("MinimumPayment")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("OriginalBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Debts");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.DebtPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DebtId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DebtId");
+
+                    b.ToTable("DebtPayments");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SavingsContribution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("SavingsGoalId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SavingsGoalId");
+
+                    b.ToTable("SavingsContributions");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SavingsGoal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("Deadline")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("TargetAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("SavingsGoals");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SharedBudget", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("OwnerId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("SharedBudgets");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SharedBudgetMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("InvitedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InvitedEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime?>("JoinedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("SharedBudgetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvitedEmail");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("SharedBudgetId", "InvitedEmail")
+                        .IsUnique();
+
+                    b.ToTable("SharedBudgetMembers");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SharedExpense", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PaidByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("SharedBudgetId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SharedBudgetId");
+
+                    b.ToTable("SharedExpenses");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SharedExpenseShare", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("SharedExpenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SharedExpenseId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("SharedExpenseShares");
                 });
 
             modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SpendingTrigger", b =>
@@ -223,6 +708,9 @@ namespace CognitiveBudget.Web.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AccountId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
 
@@ -277,11 +765,20 @@ namespace CognitiveBudget.Web.Data.Migrations
                     b.Property<DateTime>("TransactionDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Expense");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
 
                     b.HasIndex("TransactionDate");
 
@@ -290,21 +787,6 @@ namespace CognitiveBudget.Web.Data.Migrations
                     b.HasIndex("UserId", "Category");
 
                     b.ToTable("Transactions");
-                });
-
-            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.TriggerTransaction", b =>
-                {
-                    b.Property<Guid>("SpendingTriggerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TransactionId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("SpendingTriggerId", "TransactionId");
-
-                    b.HasIndex("TransactionId");
-
-                    b.ToTable("TriggerTransactions");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -439,6 +921,61 @@ namespace CognitiveBudget.Web.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Account", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.ApplicationUser", "User")
+                        .WithMany("Accounts")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.AccountTransfer", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Bill", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.ApplicationUser", "User")
+                        .WithMany("Bills")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Budget", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.ApplicationUser", "User")
+                        .WithMany("Budgets")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.BudgetCategory", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.Budget", "Budget")
+                        .WithMany("Categories")
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Budget");
+                });
+
             modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.CommitmentDevice", b =>
                 {
                     b.HasOne("CognitiveBudget.Web.Models.Domain.ApplicationUser", "User")
@@ -448,6 +985,83 @@ namespace CognitiveBudget.Web.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Debt", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.ApplicationUser", "User")
+                        .WithMany("Debts")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.DebtPayment", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.Debt", "Debt")
+                        .WithMany("Payments")
+                        .HasForeignKey("DebtId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Debt");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SavingsContribution", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.SavingsGoal", "SavingsGoal")
+                        .WithMany("Contributions")
+                        .HasForeignKey("SavingsGoalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SavingsGoal");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SavingsGoal", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.ApplicationUser", "User")
+                        .WithMany("SavingsGoals")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SharedBudgetMember", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.SharedBudget", "SharedBudget")
+                        .WithMany("Members")
+                        .HasForeignKey("SharedBudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SharedBudget");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SharedExpense", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.SharedBudget", "SharedBudget")
+                        .WithMany("Expenses")
+                        .HasForeignKey("SharedBudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SharedBudget");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SharedExpenseShare", b =>
+                {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.SharedExpense", "SharedExpense")
+                        .WithMany("Shares")
+                        .HasForeignKey("SharedExpenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SharedExpense");
                 });
 
             modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SpendingTrigger", b =>
@@ -463,6 +1077,11 @@ namespace CognitiveBudget.Web.Data.Migrations
 
             modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Transaction", b =>
                 {
+                    b.HasOne("CognitiveBudget.Web.Models.Domain.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("CognitiveBudget.Web.Models.Domain.ApplicationUser", "User")
                         .WithMany("Transactions")
                         .HasForeignKey("UserId")
@@ -470,25 +1089,6 @@ namespace CognitiveBudget.Web.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.TriggerTransaction", b =>
-                {
-                    b.HasOne("CognitiveBudget.Web.Models.Domain.SpendingTrigger", "SpendingTrigger")
-                        .WithMany("TriggerTransactions")
-                        .HasForeignKey("SpendingTriggerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CognitiveBudget.Web.Models.Domain.Transaction", "Transaction")
-                        .WithMany("TriggerTransactions")
-                        .HasForeignKey("TransactionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("SpendingTrigger");
-
-                    b.Navigation("Transaction");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -544,21 +1144,48 @@ namespace CognitiveBudget.Web.Data.Migrations
 
             modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.ApplicationUser", b =>
                 {
+                    b.Navigation("Accounts");
+
+                    b.Navigation("Bills");
+
+                    b.Navigation("Budgets");
+
                     b.Navigation("CommitmentDevices");
+
+                    b.Navigation("Debts");
+
+                    b.Navigation("SavingsGoals");
 
                     b.Navigation("SpendingTriggers");
 
                     b.Navigation("Transactions");
                 });
 
-            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SpendingTrigger", b =>
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Budget", b =>
                 {
-                    b.Navigation("TriggerTransactions");
+                    b.Navigation("Categories");
                 });
 
-            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Transaction", b =>
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.Debt", b =>
                 {
-                    b.Navigation("TriggerTransactions");
+                    b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SavingsGoal", b =>
+                {
+                    b.Navigation("Contributions");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SharedBudget", b =>
+                {
+                    b.Navigation("Expenses");
+
+                    b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("CognitiveBudget.Web.Models.Domain.SharedExpense", b =>
+                {
+                    b.Navigation("Shares");
                 });
 #pragma warning restore 612, 618
         }

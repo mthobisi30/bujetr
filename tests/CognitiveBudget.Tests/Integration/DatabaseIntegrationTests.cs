@@ -1,5 +1,5 @@
 using System.Threading.Tasks;
-using DotNet.Testcontainers.PostgreSql;
+using Testcontainers.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 using CognitiveBudget.Web.Data;
@@ -12,7 +12,7 @@ namespace CognitiveBudget.Tests.Integration
     // and migrations work end-to-end.
     public class DatabaseIntegrationTests : IAsyncLifetime
     {
-        private readonly IContainer _dbContainer;
+        private readonly PostgreSqlContainer _dbContainer;
 
         public DatabaseIntegrationTests()
         {
@@ -29,7 +29,7 @@ namespace CognitiveBudget.Tests.Integration
             await _dbContainer.StartAsync();
             // apply migrations programmatically against the container
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseNpgsql(_dbContainer.ConnectionString)
+                .UseNpgsql(_dbContainer.GetConnectionString())
                 .Options;
 
             using var ctx = new ApplicationDbContext(options);
@@ -45,7 +45,7 @@ namespace CognitiveBudget.Tests.Integration
         public async Task CanCreateAndQueryUser()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseNpgsql(_dbContainer.ConnectionString)
+                .UseNpgsql(_dbContainer.GetConnectionString())
                 .Options;
 
             using var ctx = new ApplicationDbContext(options);

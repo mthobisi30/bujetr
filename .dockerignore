@@ -1,0 +1,39 @@
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# IDE / editor
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Version control & CI
+.git/
+.gitignore
+.github/
+
+# Local env & secrets — never bake into an image
+.env
+.env.*
+**/appsettings.Development.json
+
+# Docs & misc
+*.md
+DEPLOYMENT.md
+README.md
+LICENSE
+
+# Test projects (not needed for the runtime image)
+tests/
+
+# Tooling
+dotnet-tools.json
+.config/
+
+# Logs
+**/logs/
+*.log

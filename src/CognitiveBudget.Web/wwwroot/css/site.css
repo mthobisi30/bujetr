@@ -1,3 +1,78 @@
-body {
-    padding-top: 60px;
+:root {
+    --cb-primary: #4f46e5;       /* indigo */
+    --cb-primary-dark: #4338ca;
+    --cb-accent: #06b6d4;        /* cyan */
+    --cb-bg: #f5f6fa;
+    --cb-surface: #ffffff;
+    --cb-ink: #1f2937;
+    --cb-muted: #6b7280;
+    --cb-border: #e5e7eb;
+    --cb-radius: 0.9rem;
+    --cb-shadow: 0 1px 3px rgba(17, 24, 39, .06), 0 8px 24px rgba(17, 24, 39, .05);
 }
+
+body {
+    background-color: var(--cb-bg);
+    color: var(--cb-ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ── Navbar ─────────────────────────────────────────────── */
+.navbar.cb-nav {
+    background: var(--cb-surface);
+    box-shadow: var(--cb-shadow);
+}
+.navbar.cb-nav .navbar-brand {
+    font-weight: 700;
+    color: var(--cb-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+}
+.navbar.cb-nav .nav-link { color: var(--cb-muted); font-weight: 500; border-radius: .5rem; padding: .35rem .7rem; }
+.navbar.cb-nav .nav-link:hover { color: var(--cb-primary); }
+.navbar.cb-nav .nav-link.active { color: var(--cb-primary); background: rgba(79, 70, 229, .1); }
+
+/* ── Buttons / brand colour ─────────────────────────────── */
+.btn-primary { background-color: var(--cb-primary); border-color: var(--cb-primary); }
+.btn-primary:hover, .btn-primary:focus { background-color: var(--cb-primary-dark); border-color: var(--cb-primary-dark); }
+.btn-outline-primary { color: var(--cb-primary); border-color: var(--cb-primary); }
+.btn-outline-primary:hover { background-color: var(--cb-primary); border-color: var(--cb-primary); }
+a { color: var(--cb-primary); }
+
+/* ── Cards ──────────────────────────────────────────────── */
+.card {
+    border: 1px solid var(--cb-border);
+    border-radius: var(--cb-radius);
+    box-shadow: var(--cb-shadow);
+}
+.card-title { font-weight: 600; }
+
+/* Stat / summary cards */
+.stat-card { padding: 1.1rem 1.25rem; }
+.stat-card .stat-label { color: var(--cb-muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+.stat-card .stat-value { font-size: 1.7rem; font-weight: 700; line-height: 1.1; margin-top: .25rem; }
+.stat-card .stat-icon { font-size: 1.4rem; opacity: .85; }
+
+/* ── Tables ─────────────────────────────────────────────── */
+.table { background: var(--cb-surface); }
+.table thead th { color: var(--cb-muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; border-bottom: 2px solid var(--cb-border); }
+
+/* ── Mood / badge pills ─────────────────────────────────── */
+.badge.rounded-pill { font-weight: 500; }
+
+/* ── Empty states ───────────────────────────────────────── */
+.empty-state { text-align: center; padding: 3rem 1rem; color: var(--cb-muted); }
+.empty-state .bi { font-size: 2.5rem; display: block; margin-bottom: .5rem; opacity: .6; }
+
+/* ── Confidence bar ─────────────────────────────────────── */
+.progress { background-color: var(--cb-border); height: .6rem; border-radius: 1rem; }
+
+/* ── Page header ────────────────────────────────────────── */
+.page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; margin-bottom: 1.25rem; }
+.page-header h2 { margin: 0; font-weight: 700; }
+
+/* ── Auth cards ─────────────────────────────────────────── */
+.auth-card { max-width: 440px; margin: 2.5rem auto; }
+
+footer.cb-footer { color: var(--cb-muted); font-size: .85rem; padding: 2rem 0 1rem; text-align: center; }

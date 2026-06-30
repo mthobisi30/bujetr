@@ -1,0 +1,47 @@
+# Render Blueprint — deploys the CognitiveBudget web container.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Database: this assumes an EXTERNAL Postgres (e.g. Neon). Set
+# ConnectionStrings__DefaultConnection in the Render dashboard (it's marked
+# sync:false below so it isn't stored in git). To instead use a Render-managed
+# Postgres, see the commented `databases:` block at the bottom.
+
+services:
+  - type: web
+    name: cognitivebudget
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: frankfurt          # closest Render region to South Africa
+    plan: starter              # 'free' works for testing (sleeps when idle)
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Render routes traffic to this port; the container listens on 8080.
+      - key: PORT
+        value: "8080"
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # Render terminates TLS at its proxy, so don't redirect inside the app.
+      - key: UseHttpsRedirection
+        value: "false"
+      - key: ApplyMigrationsOnStartup
+        value: "true"
+      - key: App__Culture
+        value: en-ZA
+      # Set these two in the Render dashboard (not committed):
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: Admin__Email
+        sync: false
+
+# ── Option: use a Render-managed Postgres instead of Neon ─────────────────────
+# Render's connection string is a postgres:// URI, which Npgsql does NOT parse
+# directly — you'd still convert it to "Host=...;Database=...;Username=...;
+# Password=...;SSL Mode=Require" and paste it into ConnectionStrings__Default-
+# Connection. So Neon (above) is simpler. If you want Render Postgres:
+#
+# databases:
+#   - name: cognitivebudget-db
+#     plan: basic-256mb
+#     region: frankfurt

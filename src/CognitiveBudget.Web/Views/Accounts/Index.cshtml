@@ -1,0 +1,108 @@
+@model AccountsIndexViewModel
+@{
+    ViewData["Title"] = "Accounts";
+    string Money(decimal d) => d.ToString("C");
+    var active = Model.Accounts.Where(a => !a.Account.IsArchived).ToList();
+    string TypeIcon(AccountType t) => t switch {
+        AccountType.Cash => "bi-cash", AccountType.Savings => "bi-piggy-bank",
+        AccountType.CreditCard => "bi-credit-card", AccountType.MobileWallet => "bi-phone",
+        AccountType.Investment => "bi-graph-up-arrow", _ => "bi-bank" };
+}
+
+<div class="page-header">
+    <h2><i class="bi bi-bank text-primary"></i> Accounts &amp; wallets</h2>
+    <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add account</a>
+</div>
+
+@if (!Model.Accounts.Any())
+{
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-bank"></i>
+        <h5>No accounts yet</h5>
+        <p>Add your bank, cash, savings or credit accounts to track balances and transfers.</p>
+        <a class="btn btn-primary" href="@Url.Action("Create")"><i class="bi bi-plus-lg"></i> Add your first account</a>
+    </div></div>
+}
+else
+{
+    <div class="card stat-card mb-3" style="max-width:340px;">
+        <span class="stat-label">Total balance (active accounts)</span>
+        <div class="stat-value @(Model.TotalBalance < 0 ? "text-danger" : "text-success")">@Money(Model.TotalBalance)</div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        @foreach (var ab in Model.Accounts)
+        {
+            <div class="col-md-4">
+                <div class="card h-100 @(ab.Account.IsArchived ? "opacity-75" : "")"><div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h6 class="card-title mb-1"><i class="bi @TypeIcon(ab.Account.AccountType)"></i> @ab.Account.Name</h6>
+                        <span class="badge bg-light text-dark border">@(((Enum)ab.Account.AccountType).Humanize())</span>
+                    </div>
+                    @if (ab.Account.IsArchived) { <span class="badge bg-secondary mb-1">Archived</span> }
+                    <div class="stat-value fs-4 @(ab.Balance < 0 ? "text-danger" : "")">@Money(ab.Balance)</div>
+                    <div class="small text-muted">opened with @Money(ab.Account.StartingBalance)</div>
+                    <div class="mt-2 text-end">
+                        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = ab.Account.Id })"><i class="bi bi-pencil"></i></a>
+                        <form asp-action="Delete" method="post" class="d-inline">
+                            <input type="hidden" name="id" value="@ab.Account.Id" />
+                            <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this account? Linked transactions are kept but unlinked.');"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </div>
+                </div></div>
+            </div>
+        }
+    </div>
+
+    @if (active.Count >= 2)
+    {
+        <div class="card mb-4"><div class="card-body">
+            <h6 class="card-title"><i class="bi bi-arrow-left-right"></i> Transfer between accounts</h6>
+            <form asp-action="Transfer" method="post" class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small mb-1">From</label>
+                    <select name="fromId" class="form-select form-select-sm" required>
+                        @foreach (var a in active) { <option value="@a.Account.Id">@a.Account.Name</option> }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small mb-1">To</label>
+                    <select name="toId" class="form-select form-select-sm" required>
+                        @foreach (var a in active) { <option value="@a.Account.Id">@a.Account.Name</option> }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">Amount</label>
+                    <input name="amount" type="number" step="0.01" min="0.01" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">Date</label>
+                    <input name="date" type="date" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-sm btn-primary w-100"><i class="bi bi-arrow-left-right"></i> Transfer</button>
+                </div>
+            </form>
+        </div></div>
+    }
+
+    @if (Model.Transfers.Any())
+    {
+        <div class="card"><div class="card-body">
+            <h6 class="card-title"><i class="bi bi-clock-history"></i> Recent transfers</h6>
+            <table class="table table-sm mb-0">
+                <thead><tr><th scope="col">Date</th><th scope="col">From → To</th><th scope="col" class="text-end">Amount</th></tr></thead>
+                <tbody>
+                @foreach (var t in Model.Transfers)
+                {
+                    <tr>
+                        <td>@t.Date.ToString("dd MMM yyyy")</td>
+                        <td>@Model.Names.GetValueOrDefault(t.FromAccountId, "?") <i class="bi bi-arrow-right"></i> @Model.Names.GetValueOrDefault(t.ToAccountId, "?")</td>
+                        <td class="text-end">@Money(t.Amount)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div></div>
+    }
+}

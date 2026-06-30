@@ -85,18 +85,15 @@ You can point the application at any managed PostgreSQL instance by setting
 connection string looks like this:
 
 ```bash
-export ConnectionStrings__DefaultConnection='postgresql://neondb_owner:npg_...
-  @ep-young-sea-adphisiq-pooler.c-2.us-east-1.aws.neon.tech/neondb
-  ?sslmode=require&channel_binding=require'
+export ConnectionStrings__DefaultConnection='postgresql://<user>:<password>@<host>.neon.tech/<database>?sslmode=require&channel_binding=require'
 ```
 
 > **Tip:** the application will apply EF Core migrations on startup, so
 > bringing the service up against an empty Neon database will automatically
 > create the required tables.
 
-Because the repository environment does not allow installing `psql`, I was
-unable to verify connectivity to your exact Neon URL from here, but the above
-form is the same one I tested on a local Postgres instance and should work.
+> **Security:** never commit a real connection string. Set it via an
+> environment variable or a secrets store (see `.env.example`).
 
 ### CI / CD
 

@@ -1,0 +1,30 @@
+@model IReadOnlyList<CognitiveBudget.Web.Services.Alert>
+@{ ViewData["Title"] = "Notifications"; }
+
+<div class="page-header">
+    <h2><i class="bi bi-bell text-primary"></i> Notifications</h2>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-check2-circle"></i>
+        <h5>You're all caught up</h5>
+        <p>No overdue bills, budget overruns or approaching deadlines right now.</p>
+    </div></div>
+}
+else
+{
+    <div class="card"><div class="list-group list-group-flush">
+        @foreach (var a in Model)
+        {
+            <a href="@a.Url" class="list-group-item list-group-item-action d-flex align-items-start gap-3">
+                <i class="bi @a.Icon fs-5 text-@a.Severity"></i>
+                <div>
+                    <div>@a.Message</div>
+                    <span class="badge bg-@a.Severity text-uppercase" style="font-size:.65rem;">@a.Severity</span>
+                </div>
+            </a>
+        }
+    </div></div>
+}
